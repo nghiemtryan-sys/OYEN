@@ -1,0 +1,1840 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OYEN — Quản lý đơn hàng</title>
+<style>
+  :root{
+    --bg:#F3F6FC; --panel:#FFFFFF; --panel-alt:#EAF1FE;
+    --ink:#1F2430; --ink-soft:#66707E; --ink-faint:#98A2B3;
+    --green:#2F6FED; --green-soft:#2558C4; --gold:#B5852B; --red:#E0483B; --blue:#2F6FED;
+    --line:#E3E8F0; --line-soft:#EEF2F8;
+    --icon-green:#E3ECFE; --icon-gold:#FBF0DC; --icon-blue:#E3ECFE; --icon-red:#FDE7E4;
+    --grad-start:#4C8DFF; --grad-end:#1B4FD1;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'Segoe UI', system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--ink);}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#DED2B4;border-radius:8px;}
+  input,select,textarea,button{font-family:inherit;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,70,48,0.12);}
+  button:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
+
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:226px;background:#fff;border-right:1px solid var(--line);color:var(--ink);flex-shrink:0;padding:26px 16px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:30px;padding-left:6px;}
+  .brand-badge{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--grad-start),var(--grad-end));color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;flex-shrink:0;box-shadow:0 4px 10px rgba(47,111,237,0.3);}
+  .brand-name{font-weight:800;font-size:16px;letter-spacing:.2px;color:var(--ink);}
+  .brand-sub{font-size:11px;color:var(--ink-faint);}
+  .navlist{display:flex;flex-direction:column;gap:3px;}
+  .navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;border:none;cursor:pointer;text-align:left;font-size:14px;font-weight:600;background:transparent;color:var(--ink-soft);width:100%;}
+  .navitem:hover{background:var(--panel-alt);}
+  .navitem.active{background:var(--panel-alt);color:var(--green);}
+  .navicon{font-size:16px;width:18px;text-align:center;}
+
+  .mobileheader{display:none;align-items:center;justify-content:space-between;padding:14px 16px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40;}
+  .mobileheader-greet{font-size:11.5px;color:var(--ink-faint);}
+  .mobileheader-name{font-weight:800;font-size:15.5px;color:var(--ink);}
+  .mobileheader-bell{font-size:18px;background:var(--panel-alt);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;}
+
+  .mobilenav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);z-index:50;padding:8px 4px;justify-content:space-around;box-shadow:0 -2px 14px rgba(20,30,60,0.06);}
+  .mobilenav button{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-faint);font-size:9.5px;font-weight:600;padding:4px;}
+  .mobilenav button.active{color:var(--green);}
+  .mobilenav .navicon{font-size:17px;}
+
+  .fab{position:fixed;right:22px;bottom:28px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--grad-start),var(--grad-end));color:#fff;border:none;font-size:27px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 22px rgba(47,111,237,0.4);z-index:60;}
+  .fab:hover{filter:brightness(1.06);}
+
+  .segmented{display:inline-flex;background:var(--panel-alt);border-radius:12px;padding:4px;gap:2px;}
+  .segmented button{border:none;background:transparent;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
+  .segmented button.active{background:#fff;color:var(--ink);box-shadow:0 1px 5px rgba(20,30,60,0.14);}
+  .range-extra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .range-extra button{border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:20px;cursor:pointer;}
+  .range-extra button.active{background:var(--green);border-color:var(--green);color:#fff;}
+
+  .hero-card{background:linear-gradient(135deg,var(--grad-start),var(--grad-end));border-radius:16px;padding:20px 22px;color:#fff;margin-bottom:16px;box-shadow:0 10px 26px rgba(47,111,237,0.28);}
+  .hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
+  .hero-label{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  .hero-dot{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block;}
+  .hero-date{font-size:12px;opacity:.85;margin-top:5px;}
+  .hero-link{background:none;border:none;color:#fff;opacity:.9;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .hero-bottom{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .hero-growth{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,0.2);}
+  .hero-amount{font-size:30px;font-weight:800;}
+
+  .linechart-wrap{position:relative;}
+  .linechart-legend{display:flex;gap:16px;justify-content:flex-end;margin-bottom:6px;font-size:12px;color:var(--ink-soft);}
+  .legend-dot{display:inline-flex;align-items:center;gap:5px;}
+  .legend-swatch{width:14px;height:3px;border-radius:2px;display:inline-block;}
+  .linechart-x{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-faint);margin-top:2px;padding:0 2px;}
+
+  .quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 20px;}
+  .qa-item{display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 2px;}
+  .qa-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .qa-label{font-size:11.5px;font-weight:600;color:var(--ink-soft);text-align:center;line-height:1.3;}
+
+  .pending-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .pending-chip{flex:1;min-width:150px;background:var(--panel-alt);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:none;text-align:left;}
+  .pending-chip-label{font-size:13px;color:var(--ink-soft);font-weight:600;margin-bottom:4px;}
+  .pending-chip-value{font-size:20px;font-weight:800;color:var(--ink);}
+  .pending-chip-arrow{color:var(--ink-faint);font-size:16px;}
+
+  .pkg-compact-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px;cursor:pointer;}
+  .pkg-compact-card:hover{border-color:var(--green-soft);}
+  .pkg-compact-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .pkg-compact-name{font-weight:700;font-size:15px;}
+  .pkg-compact-meta{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+  .pkg-compact-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);gap:8px;flex-wrap:wrap;}
+  .pkg-sub-count{font-size:12.5px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;}
+
+  .subscriber-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line-soft);flex-wrap:wrap;}
+  .subscriber-name{font-weight:700;font-size:13.5px;}
+  .subscriber-actions{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
+  .subscriber-actions select{font-size:12px;padding:5px 8px;width:auto;}
+
+  .main{flex:1;padding:28px 32px;min-width:0;padding-bottom:80px;}
+
+  .section-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:12px;flex-wrap:wrap;}
+  .section-title{margin:0;font-size:22px;font-weight:800;color:var(--ink);}
+  .section-sub{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:.15s;white-space:nowrap;}
+  .btn-solid{background:var(--green);color:#fff;}
+  .btn-solid:hover{background:var(--green-soft);}
+  .btn-ghost{background:transparent;color:var(--green);border:1px solid var(--line);}
+  .btn-ghost:hover{background:var(--panel-alt);}
+  .btn-danger{background:transparent;color:var(--red);border:1px solid var(--line);}
+  .btn-danger:hover{background:#FBEDEA;}
+  .icon-btn{background:none;border:none;cursor:pointer;color:var(--ink-faint);padding:6px;border-radius:6px;}
+  .icon-btn:hover{background:var(--line-soft);color:var(--ink);}
+
+  .stats-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
+  .stat-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px 18px;flex:1;min-width:150px;}
+  .stat-label{font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .stat-value{font-size:24px;font-weight:800;}
+  .stat-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+  .stat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .trend-pill{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;}
+  .trend-up{color:#2E6B3E;background:#E1F0E3;}
+  .trend-down{color:var(--red);background:#F7E4E0;}
+
+  .range-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px;}
+  .range-pill{border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-size:13px;font-weight:600;padding:7px 13px;border-radius:20px;cursor:pointer;}
+  .range-pill.active{background:var(--green);border-color:var(--green);color:#fff;}
+  .range-dates{display:flex;gap:8px;align-items:center;}
+
+  .alert-list{display:flex;flex-direction:column;gap:8px;}
+  .alert-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:#FBF1DE;border:1px solid #EEDDB0;}
+  .alert-item.danger{background:#FBEAE6;border-color:#EFC7BC;}
+  .alert-name{font-size:13.5px;font-weight:700;}
+  .alert-sub{font-size:12px;color:var(--ink-soft);}
+
+  .progress-track{height:8px;border-radius:6px;background:var(--line-soft);overflow:hidden;margin:8px 0;}
+  .progress-fill{height:100%;border-radius:6px;background:var(--green-soft);}
+  .progress-fill.low{background:var(--gold);}
+  .progress-fill.empty{background:var(--red);}
+  .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);}
+
+  .branch-pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--blue);background:var(--icon-blue);padding:2px 8px;border-radius:20px;}
+  .settings-block{margin-bottom:22px;}
+  .settings-block h4{font-size:14px;margin:0 0 8px;}
+  .code-box{background:#232019;color:#E9E2CC;font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px;padding:14px 16px;border-radius:9px;overflow-x:auto;white-space:pre;line-height:1.6;}
+  .conn-badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:6px 12px;border-radius:20px;}
+  .conn-ok{background:#E1F0E3;color:#2E6B3E;}
+  .conn-off{background:#F0E9D8;color:var(--ink-soft);}
+
+  .panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:20px;}
+  .panel-title{font-size:14px;font-weight:700;margin-bottom:16px;}
+  .dash-grid{display:flex;gap:18px;flex-wrap:wrap;}
+  .dash-col{flex:1 1 320px;}
+
+  .chart-bars{display:flex;align-items:flex-end;gap:10px;height:130px;}
+  .chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .chart-bar{width:100%;max-width:34px;border-radius:5px 5px 2px 2px;background:var(--green-soft);}
+  .chart-bar.today{background:var(--gold);}
+  .chart-day{font-size:11px;color:var(--ink-faint);text-transform:capitalize;}
+
+  .upcoming-row{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--line-soft);}
+  .upcoming-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+
+  .filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
+  .date-box{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
+  .date-box input{border:none;font-size:13.5px;background:transparent;color:var(--ink);}
+  .check-label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft);cursor:pointer;}
+  .search-wrap{position:relative;flex:1 1 180px;min-width:160px;}
+  .search-wrap .search-icon{position:absolute;left:10px;top:11px;color:var(--ink-faint);font-size:13px;}
+  .search-wrap input{padding-left:28px;}
+
+  .input{width:100%;padding:9px 11px;border-radius:7px;border:1px solid var(--line);font-size:14px;color:var(--ink);background:#fff;}
+  textarea.input{resize:vertical;min-height:64px;}
+  .field{display:block;margin-bottom:14px;}
+  .field-label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field-hint{display:block;font-size:11.5px;color:var(--ink-faint);margin-top:4px;}
+  .field-row{display:flex;gap:12px;}
+  .field-row>.field{flex:1;}
+
+  .empty-state{text-align:center;padding:56px 20px;color:var(--ink-faint);border:1px dashed var(--line);border-radius:12px;background:#fff;}
+  .empty-icon{font-size:30px;margin-bottom:10px;opacity:.6;}
+  .empty-title{font-size:14.5px;font-weight:600;color:var(--ink-soft);}
+  .empty-sub{font-size:13px;margin-top:4px;}
+
+  .order-row{background:var(--panel);border:1px solid var(--line-soft);border-radius:10px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .order-row:hover{border-color:var(--green-soft);}
+  .order-name{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:6px;}
+  .order-sub{font-size:12.5px;color:var(--ink-faint);display:flex;align-items:center;gap:4px;margin-top:2px;}
+  .order-items{font-size:13px;color:var(--ink-soft);}
+  .order-total{font-weight:700;color:var(--ink);margin-top:3px;}
+  .order-time{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;min-width:130px;}
+  .status-select{font-weight:600;}
+
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:12px;}
+  .card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px;cursor:pointer;}
+  .card:hover{border-color:var(--green-soft);}
+  .card-nohover{cursor:default;}
+  .cust-name{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;}
+  .cust-line{font-size:12.5px;color:var(--ink-faint);display:flex;align-items:center;gap:4px;margin-top:6px;}
+  .cust-stats{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:12.5px;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(43,38,32,0.45);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow-y:auto;}
+  .modal{background:var(--panel);border-radius:14px;width:100%;max-width:460px;box-shadow:0 20px 50px rgba(43,38,32,0.25);overflow:hidden;}
+  .modal.wide{max-width:640px;}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line-soft);}
+  .modal-header h3{margin:0;font-size:16px;font-weight:700;}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:18px;padding:4px;}
+  .modal-body{padding:20px;}
+
+  .mode-toggle{display:flex;gap:8px;margin-bottom:14px;}
+  .mode-toggle label{flex:1;position:relative;}
+  .mode-toggle input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
+  .mode-toggle span{display:block;text-align:center;padding:8px 0;border-radius:7px;border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .mode-toggle input:checked+span{border-color:var(--green);background:var(--panel-alt);color:var(--green);}
+
+  .weekday-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .weekday-item{position:relative;}
+  .weekday-item input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
+  .weekday-item span{display:block;padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:600;border:1px solid var(--line);color:var(--ink-soft);}
+  .weekday-item input:checked+span{border-color:var(--green);background:var(--green);color:#fff;}
+
+  .item-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .item-row select{flex:1;}
+  .item-row input{width:70px;}
+  .row-remove{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:15px;padding:4px;}
+  .add-row-btn{background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 0;}
+
+  .total-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line-soft);margin-top:6px;}
+  .total-label{font-size:13.5px;color:var(--ink-soft);font-weight:600;}
+  .total-value{font-size:18px;font-weight:800;color:var(--green);}
+  .form-actions{display:flex;gap:8px;margin-top:10px;}
+  .form-actions .btn{flex:1;justify-content:center;}
+
+  .sub-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .sub-foot{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--line-soft);}
+  .sub-foot select{font-size:12px;padding:5px 8px;width:auto;}
+
+  .recipe-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;margin-bottom:10px;}
+  .recipe-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;}
+  .recipe-body{padding:0 16px 16px;border-top:1px solid var(--line-soft);display:none;}
+  .recipe-body.open{display:block;}
+  .recipe-cols{display:flex;gap:24px;flex-wrap:wrap;margin-top:14px;}
+  .recipe-col{flex:1 1 200px;}
+  .recipe-col-title{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;}
+  .recipe-col ul,.recipe-col ol{margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;}
+  .recipe-note{margin-top:12px;font-size:12.5px;color:var(--ink-soft);background:var(--panel-alt);padding:8px 10px;border-radius:7px;}
+  .chevron{display:inline-block;transition:transform .15s;color:var(--ink-faint);}
+  .chevron.open{transform:rotate(180deg);}
+
+  .detail-line{display:flex;gap:6px;align-items:center;font-size:13.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .detail-note{background:var(--panel-alt);padding:8px 10px;border-radius:7px;margin-top:4px;font-size:13.5px;}
+  .detail-stats{display:flex;gap:12px;margin:16px 0;}
+  .detail-stat{flex:1;background:var(--panel-alt);border-radius:8px;padding:10px 12px;}
+  .detail-stat-label{font-size:11.5px;color:var(--ink-faint);}
+  .detail-stat-value{font-size:18px;font-weight:800;}
+  .hist-row{display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line-soft);gap:8px;}
+  .hist-list{display:flex;flex-direction:column;max-height:200px;overflow-y:auto;margin-bottom:16px;}
+
+  .loading{min-height:60vh;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);}
+
+  @media (max-width: 860px){
+    .sidebar{display:none;}
+    .mobilenav{display:flex;}
+    .mobileheader{display:flex;}
+    .main{padding:16px;padding-bottom:90px;}
+    .fab{bottom:80px;}
+  }
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Đang tải dữ liệu...</div></div>
+<div id="modalRoot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ================= CONSTANTS & HELPERS ================= */
+const STATUS = [
+  { key:'cho_xac_nhan', label:'Chờ xác nhận', color:'#9A8355' },
+  { key:'da_xac_nhan', label:'Đã xác nhận', color:'#3B6D8C' },
+  { key:'dang_chuan_bi', label:'Đang chuẩn bị', color:'#7C5C9E' },
+  { key:'dang_giao', label:'Đang giao', color:'#B5852B' },
+  { key:'hoan_thanh', label:'Hoàn thành', color:'#3D7A4E' },
+  { key:'da_huy', label:'Đã hủy', color:'#B14A38' },
+];
+const SUB_STATUS = [
+  { key:'dang_hoat_dong', label:'Đang hoạt động', color:'#3D7A4E' },
+  { key:'tam_dung', label:'Tạm dừng', color:'#9A8355' },
+  { key:'ket_thuc', label:'Đã kết thúc', color:'#B14A38' },
+];
+const WEEKDAYS = ['T2','T3','T4','T5','T6','T7','CN'];
+const NAV = [
+  {key:'dashboard', label:'Tổng quan', icon:'📊'},
+  {key:'orders', label:'Đơn hàng', icon:'🧾'},
+  {key:'customers', label:'Khách hàng', icon:'👥'},
+  {key:'subscriptions', label:'Gói đăng ký', icon:'🔁'},
+  {key:'branches', label:'Cơ sở', icon:'🏬'},
+  {key:'products', label:'Sản phẩm', icon:'📦'},
+  {key:'recipes', label:'Công thức', icon:'📖'},
+  {key:'settings', label:'Đồng bộ dữ liệu', icon:'⚙️'},
+];
+/* ================= SUPABASE SYNC ================= */
+// Điền URL và anon key dự án Supabase của bạn vào đây trước khi triển khai
+// (Cài đặt → Đồng bộ dữ liệu trong ứng dụng có hướng dẫn tạo bảng + lấy khóa)
+const SUPABASE_URL = 'https://xpcshmykjntoxggmyoem.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_S-TONa26LpDa3zi8-pz5IQ_ObtZym94';
+let supaClient = null;
+let supaReady = false;
+function initSupabase(){
+  if(SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase){
+    try{
+      supaClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      supaReady = true;
+    }catch(e){ console.error('Supabase init error', e); supaReady = false; }
+  }
+  return supaReady;
+}
+function setupRealtimeSync(){
+  if(!supaClient) return;
+  const map = {'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:branches':'branches'};
+  supaClient.channel('nuts_kv_live')
+    .on('postgres_changes', {event:'*', schema:'public', table:'nuts_kv'}, async (payload)=>{
+      const key = payload.new?.key || payload.old?.key;
+      const field = map[key];
+      if(!field) return;
+      DB[field] = await loadKey(key, DB[field]);
+      if(LOADED) renderMain();
+    }).subscribe();
+}
+
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+const vnd = (n) => (Number(n)||0).toLocaleString('vi-VN') + 'đ';
+const todayISO = () => new Date().toISOString().slice(0,10);
+const statusOf = (k) => STATUS.find(s=>s.key===k) || STATUS[0];
+const subStatusOf = (k) => SUB_STATUS.find(s=>s.key===k) || SUB_STATUS[0];
+const escapeHtml = (str) => String(str??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '—';
+
+/* ================= STORAGE ================= */
+// Ưu tiên Supabase (đồng bộ nhiều thiết bị) nếu đã cấu hình, nếu không thì dùng
+// bộ nhớ cục bộ của trình xem file (chỉ hoạt động trên cùng 1 thiết bị/phiên).
+async function loadKey(key, fallback){
+  if(supaClient){
+    try{
+      const { data, error } = await supaClient.from('nuts_kv').select('value').eq('key', key).maybeSingle();
+      if(error) throw error;
+      return data ? data.value : fallback;
+    }catch(e){ console.error('Lỗi tải dữ liệu Supabase', key, e); }
+  }
+  try{
+    const res = await window.storage.get(key, false);
+    return res ? JSON.parse(res.value) : fallback;
+  }catch(e){ return fallback; }
+}
+async function saveKey(key, value){
+  if(supaClient){
+    try{
+      const { error } = await supaClient.from('nuts_kv').upsert({ key, value, updated_at: new Date().toISOString() });
+      if(error) throw error;
+      return;
+    }catch(e){ console.error('Lỗi lưu dữ liệu Supabase', key, e); }
+  }
+  try{ await window.storage.set(key, JSON.stringify(value), false); }catch(e){ console.error('storage error', e); }
+}
+function seedBranches(){
+  return [ { id:uid(), name:'Cơ sở chính', address:'' } ];
+}
+function seedProducts(){
+  return [
+    { id:uid(), name:'Sữa hạnh nhân', category:'Sữa hạt', price:35000, unit:'chai 500ml', desc:'Hạnh nhân nguyên chất, không đường, không chất bảo quản.' },
+    { id:uid(), name:'Sữa óc chó', category:'Sữa hạt', price:42000, unit:'chai 500ml', desc:'Giàu Omega-3, tốt cho trí não.' },
+    { id:uid(), name:'Sữa mè đen đậu đen', category:'Sữa hạt', price:30000, unit:'chai 500ml', desc:'Bổ thận, đẹp tóc, thanh mát.' },
+    { id:uid(), name:'Sữa đậu nành nguyên chất', category:'Sữa hạt', price:22000, unit:'chai 500ml', desc:'Vị truyền thống, thơm béo tự nhiên.' },
+    { id:uid(), name:'Sữa hạt sen', category:'Sữa hạt', price:32000, unit:'chai 500ml', desc:'Thanh nhiệt, dễ ngủ, hợp trẻ nhỏ.' },
+  ];
+}
+
+/* ================= STATE ================= */
+const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subscribers:[], branches:[] };
+let LOADED = false;
+let TAB = 'dashboard';
+let ordersFilter = { mode:'today', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
+let customersFilter = { search:'' };
+let dashFilter = { mode:'today', from: todayISO(), to: todayISO(), branch:'all' };
+
+/* Chuyển dữ liệu gói đăng ký kiểu cũ (1 gói = 1 khách) sang mô hình mới:
+   1 gói (package) dùng chung cho nhiều khách (subscriber), mỗi khách có số
+   lượng còn lại riêng. Các gói cũ có cùng cấu hình sẽ được gộp thành 1 gói. */
+function migrateLegacySubs(oldSubs){
+  const packages = []; const subscribers = []; const sigMap = {};
+  (oldSubs||[]).forEach(s=>{
+    const sig = [s.packageType, s.totalQty, s.unitLabel, s.price, (s.weekdays||[]).join(','), s.monthDay].join('|');
+    let pkg = sigMap[sig];
+    if(!pkg){
+      pkg = {
+        id: uid(),
+        name: `Gói ${s.packageType==='tuan'?'tuần':'tháng'} ${s.totalQty||''}${s.unitLabel||'ly'}`.trim(),
+        packageType: s.packageType||'tuan', weekdays: s.weekdays||[], monthDay: s.monthDay||1,
+        totalQty: s.totalQty||1, unitLabel: s.unitLabel||'ly', price: s.price||0,
+        warningThreshold: s.warningThreshold ?? 2, note: '',
+      };
+      packages.push(pkg); sigMap[sig] = pkg;
+    }
+    subscribers.push({
+      id: s.id || uid(), packageId: pkg.id, customerId: s.customerId, customerName: s.customerName,
+      status: s.status || 'dang_hoat_dong', startDate: s.startDate || todayISO(),
+      remainingQty: s.remainingQty ?? pkg.totalQty, note: s.note || '',
+    });
+  });
+  return { packages, subscribers };
+}
+function packageOf(id){ return DB.packages.find(p=>p.id===id); }
+function subscriberOf(id){ return DB.subscribers.find(s=>s.id===id); }
+
+async function init(){
+  initSupabase();
+  const [p,r,c,o,pkgs,subr,legacySubs,b] = await Promise.all([
+    loadKey('nuts:products', null),
+    loadKey('nuts:recipes', []),
+    loadKey('nuts:customers', []),
+    loadKey('nuts:orders', []),
+    loadKey('nuts:packages', null),
+    loadKey('nuts:subscribers', null),
+    loadKey('nuts:subs', []),
+    loadKey('nuts:branches', null),
+  ]);
+  DB.products = p ?? seedProducts();
+  DB.recipes = r ?? [];
+  DB.customers = c ?? [];
+  DB.orders = o ?? [];
+  DB.branches = b ?? seedBranches();
+  if(pkgs && subr){
+    DB.packages = pkgs; DB.subscribers = subr;
+  } else {
+    const migrated = migrateLegacySubs(legacySubs || []);
+    DB.packages = migrated.packages;
+    DB.subscribers = migrated.subscribers;
+    saveKey('nuts:packages', DB.packages);
+    saveKey('nuts:subscribers', DB.subscribers);
+  }
+  LOADED = true;
+  saveKey('nuts:products', DB.products);
+  saveKey('nuts:branches', DB.branches);
+  render();
+  if(supaClient) setupRealtimeSync();
+}
+function persistProducts(){ saveKey('nuts:products', DB.products); }
+function persistRecipes(){ saveKey('nuts:recipes', DB.recipes); }
+function persistCustomers(){ saveKey('nuts:customers', DB.customers); }
+function persistOrders(){ saveKey('nuts:orders', DB.orders); }
+function persistPackages(){ saveKey('nuts:packages', DB.packages); }
+function persistSubscribers(){ saveKey('nuts:subscribers', DB.subscribers); }
+function persistBranches(){ saveKey('nuts:branches', DB.branches); }
+function branchOf(id){ return DB.branches.find(b=>b.id===id); }
+function branchName(id){ return branchOf(id)?.name || '—'; }
+
+/* ============ Date range helpers (ngày / tuần / tháng / tùy chỉnh) ============ */
+function isoAddDays(iso, delta){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+delta); return d.toISOString().slice(0,10); }
+function resolveRange(filter){
+  const today = todayISO();
+  if(filter.mode==='today') return { from: today, to: today };
+  if(filter.mode==='week') return { from: isoAddDays(today,-6), to: today };
+  if(filter.mode==='month'){ const d=new Date(); const first=new Date(d.getFullYear(), d.getMonth(),1).toISOString().slice(0,10); return { from:first, to: today }; }
+  if(filter.mode==='all'){
+    const dates = DB.orders.map(o=>o.deliveryDate).filter(Boolean).sort();
+    return { from: dates[0] || today, to: today };
+  }
+  return { from: filter.from||today, to: filter.to||today };
+}
+function rangeLabel(filter){
+  const map = {today:'Hôm nay', week:'7 ngày qua', month:'Tháng này', all:'Tất cả', custom:'Tùy chỉnh'};
+  return map[filter.mode] || filter.mode;
+}
+function ordersInRange(range, branch){
+  return DB.orders.filter(o=> o.deliveryDate>=range.from && o.deliveryDate<=range.to && (!branch || branch==='all' || o.branchId===branch));
+}
+function buildSeries(range, branch){
+  const start = new Date(range.from+'T00:00:00');
+  const end = new Date(range.to+'T00:00:00');
+  const dayCount = Math.max(1, Math.min(3660, Math.round((end-start)/86400000)+1));
+  const days = [];
+  if(dayCount<=31){
+    for(let i=0;i<dayCount;i++){
+      const iso = isoAddDays(range.from, i);
+      days.push({ label: new Date(iso+'T00:00:00').toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}), iso, from: iso, to: iso });
+    }
+  } else {
+    // Nhóm theo tuần; nếu khoảng thời gian quá dài, tăng độ rộng mỗi nhóm để tối đa ~30 cột
+    const stepDays = Math.max(7, Math.ceil(dayCount/30));
+    let cursor = range.from;
+    let guard = 0;
+    while(cursor<=range.to && guard<60){
+      const chunkEnd = isoAddDays(cursor,stepDays-1) > range.to ? range.to : isoAddDays(cursor,stepDays-1);
+      days.push({ label: new Date(cursor+'T00:00:00').toLocaleDateString('vi-VN',{day:'2-digit',month:'2-digit'}), iso:cursor, from:cursor, to:chunkEnd });
+      cursor = isoAddDays(chunkEnd,1);
+      guard++;
+    }
+  }
+  return days.map(d=>{
+    const total = DB.orders.filter(o=>o.deliveryDate>=d.from && o.deliveryDate<=d.to && o.status!=='da_huy' && (!branch||branch==='all'||o.branchId===branch)).reduce((s,o)=>s+o.total,0);
+    return { ...d, total };
+  });
+}
+function previousRange(range){
+  const start = new Date(range.from+'T00:00:00');
+  const end = new Date(range.to+'T00:00:00');
+  const dayCount = Math.max(1, Math.round((end-start)/86400000)+1);
+  const prevTo = isoAddDays(range.from, -1);
+  const prevFrom = isoAddDays(prevTo, -(dayCount-1));
+  return { from: prevFrom, to: prevTo };
+}
+function pctGrowth(curr, prev){
+  if(prev<=0) return curr>0 ? 100 : 0;
+  return Math.round(((curr-prev)/prev)*100);
+}
+function fmtShort(n){
+  n = Number(n)||0;
+  if(Math.abs(n)>=1000) return (n/1000).toFixed(1).replace(/\.0$/,'') + 'K';
+  return String(Math.round(n));
+}
+
+/* ================= MODAL HELPERS ================= */
+function openModal(title, bodyHtml, wide){
+  document.getElementById('modalRoot').innerHTML = `
+    <div class="modal-overlay" onmousedown="if(event.target===this) closeModal()">
+      <div class="modal ${wide?'wide':''}">
+        <div class="modal-header"><h3>${escapeHtml(title)}</h3><button class="modal-close" onclick="closeModal()">✕</button></div>
+        <div class="modal-body">${bodyHtml}</div>
+      </div>
+    </div>`;
+}
+function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
+
+/* ================= RENDER SHELL ================= */
+function render(){
+  const app = document.getElementById('app');
+  if(!LOADED){ app.innerHTML = '<div class="loading">Đang tải dữ liệu...</div>'; return; }
+  app.innerHTML = `
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand">
+          <div class="brand-badge">O</div>
+          <div><div class="brand-name">OYEN</div><div class="brand-sub">Sữa hạt nhà làm</div></div>
+        </div>
+        <nav class="navlist">
+          ${NAV.map(n=>`<button class="navitem ${TAB===n.key?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
+        </nav>
+      </aside>
+      <main class="main" id="mainContent"></main>
+    </div>
+    <div class="mobilenav">
+      ${NAV.map(n=>`<button class="${TAB===n.key?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
+    </div>
+    <button class="fab" onclick="openQuickOrderModal()" title="Tạo đơn nhanh">＋</button>
+  `;
+  renderMain();
+}
+function setTab(key){ TAB = key; render(); }
+
+function renderMain(){
+  const el = document.getElementById('mainContent');
+  if(TAB==='dashboard') el.innerHTML = renderDashboard();
+  else if(TAB==='orders'){ el.innerHTML = renderOrdersTab(); refreshOrdersList(); }
+  else if(TAB==='customers'){ el.innerHTML = renderCustomersTab(); refreshCustomersList(); }
+  else if(TAB==='subscriptions') el.innerHTML = renderSubscriptionsTab();
+  else if(TAB==='branches') el.innerHTML = renderBranchesTab();
+  else if(TAB==='products') el.innerHTML = renderProductsTab();
+  else if(TAB==='recipes') el.innerHTML = renderRecipesTab();
+  else if(TAB==='settings') el.innerHTML = renderSettingsTab();
+}
+
+function sectionHeader(title, sub, actionHtml){
+  return `<div class="section-header">
+    <div><h1 class="section-title">${escapeHtml(title)}</h1>${sub?`<p class="section-sub">${escapeHtml(sub)}</p>`:''}</div>
+    ${actionHtml||''}
+  </div>`;
+}
+
+/* ================= DASHBOARD ================= */
+function statCard(icon, iconBg, label, value, growthPct){
+  const hasGrowth = typeof growthPct === 'number';
+  const trendClass = growthPct>=0 ? 'trend-up' : 'trend-down';
+  const arrow = growthPct>=0 ? '↗' : '↘';
+  return `<div class="stat-card">
+    <div class="stat-top">
+      <div class="stat-icon" style="background:${iconBg};">${icon}</div>
+      ${hasGrowth ? `<span class="trend-pill ${trendClass}">${arrow} ${Math.abs(growthPct)}%</span>` : ''}
+    </div>
+    <div class="stat-label">${label}</div>
+    <div class="stat-value">${value}</div>
+  </div>`;
+}
+function lowSubs(){
+  return DB.subscribers.filter(s=>{
+    if(s.status!=='dang_hoat_dong') return false;
+    const pkg = packageOf(s.packageId);
+    const threshold = pkg ? (pkg.warningThreshold ?? 2) : 2;
+    return s.remainingQty<=threshold;
+  }).map(s=>({ ...s, pkg: packageOf(s.packageId) }));
+}
+function renderLineChart(currentSeries, prevSeries){
+  const w=680, h=170, padL=32, padR=8, padT=10, padB=6;
+  const n = Math.max(currentSeries.length, prevSeries.length, 1);
+  const maxVal = Math.max(...currentSeries.map(d=>d.total), ...prevSeries.map(d=>d.total), 1);
+  const x = i => padL + (i*(w-padL-padR))/Math.max(1,n-1);
+  const y = v => h-padB - (v/maxVal)*(h-padT-padB);
+  const pathFor = series => series.map((d,i)=>`${i===0?'M':'L'}${x(i).toFixed(1)},${y(d.total).toFixed(1)}`).join(' ');
+  const ticks = [0,0.25,0.5,0.75,1].map(f=>Math.round(maxVal*f));
+  const gridLines = ticks.map(t=>`<line x1="${padL}" y1="${y(t).toFixed(1)}" x2="${w-padR}" y2="${y(t).toFixed(1)}" style="stroke:var(--line-soft);stroke-width:1"/>
+    <text x="2" y="${(y(t)+3.5).toFixed(1)}" font-size="9.5" style="fill:var(--ink-faint)">${fmtShort(t)}</text>`).join('');
+  const dotsCur = currentSeries.map((d,i)=>`<circle cx="${x(i).toFixed(1)}" cy="${y(d.total).toFixed(1)}" r="3.2" style="fill:var(--green)"/>`).join('');
+  const svg = `<svg viewBox="0 0 ${w} ${h}" style="width:100%;height:170px;display:block;" preserveAspectRatio="none">
+    ${gridLines}
+    <path d="${pathFor(prevSeries)}" fill="none" style="stroke:var(--gold);stroke-width:2;stroke-dasharray:5,4"/>
+    <path d="${pathFor(currentSeries)}" fill="none" style="stroke:var(--green);stroke-width:2.5"/>
+    ${dotsCur}
+  </svg>`;
+  const labels = currentSeries.map(d=>`<span>${escapeHtml(d.label)}</span>`).join('');
+  return `<div class="linechart-wrap">${svg}<div class="linechart-x">${labels}</div></div>`;
+}
+function renderDashboard(){
+  const today = todayISO();
+  const range = resolveRange(dashFilter);
+  const prevRange = previousRange(range);
+  const branch = dashFilter.branch;
+
+  const rangeOrders = ordersInRange(range, branch);
+  const activeOrders = rangeOrders.filter(o=>o.status!=='da_huy');
+  const revenue = activeOrders.reduce((s,o)=>s+o.total,0);
+  const qtySold = activeOrders.reduce((s,o)=>s+o.items.reduce((a,it)=>a+it.qty,0),0);
+  const avgOrder = activeOrders.length ? Math.round(revenue/activeOrders.length) : 0;
+
+  const prevOrders = ordersInRange(prevRange, branch).filter(o=>o.status!=='da_huy');
+  const prevRevenue = prevOrders.reduce((s,o)=>s+o.total,0);
+  const prevQty = prevOrders.reduce((s,o)=>s+o.items.reduce((a,it)=>a+it.qty,0),0);
+  const prevAvg = prevOrders.length ? Math.round(prevRevenue/prevOrders.length) : 0;
+
+  const revenueGrowth = pctGrowth(revenue, prevRevenue);
+  const orderGrowth = pctGrowth(activeOrders.length, prevOrders.length);
+  const avgGrowth = pctGrowth(avgOrder, prevAvg);
+  const qtyGrowth = pctGrowth(qtySold, prevQty);
+
+  const activeSubsCount = DB.subscribers.filter(s=>s.status==='dang_hoat_dong').length;
+
+  const currentSeries = buildSeries(range, branch);
+  const prevSeries = buildSeries(prevRange, branch);
+
+  const todaysOrders = DB.orders.filter(o=>o.deliveryDate===today);
+  const upcoming = todaysOrders.filter(o=>o.status!=='hoan_thanh' && o.status!=='da_huy')
+    .sort((a,b)=>(a.deliveryTime||'').localeCompare(b.deliveryTime||''));
+
+  const pendingConfirm = DB.orders.filter(o=>o.status==='cho_xac_nhan').length;
+  const notDelivered = DB.orders.filter(o=>['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(o.status)).length;
+
+  const dateLabel = new Date().toLocaleDateString('vi-VN',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
+  const alerts = lowSubs();
+
+  return `
+    <div class="mobileheader">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div class="brand-badge">O</div>
+        <div><div class="mobileheader-greet">Xin chào 👋</div><div class="mobileheader-name">OYEN</div></div>
+      </div>
+      <button class="mobileheader-bell" onclick="setTab('orders')">🔔</button>
+    </div>
+    ${sectionHeader('Tổng quan', dateLabel)}
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:18px;">
+      <div class="segmented">
+        ${['today','week','month'].map(m=>`<button class="${dashFilter.mode===m?'active':''}" onclick="setDashRange('${m}')">${rangeLabel({mode:m})}</button>`).join('')}
+      </div>
+      <div class="range-extra">
+        ${['all','custom'].map(m=>`<button class="${dashFilter.mode===m?'active':''}" onclick="setDashRange('${m}')">${rangeLabel({mode:m})}</button>`).join('')}
+      </div>
+      ${dashFilter.mode==='custom' ? `<div class="range-dates">
+        <input class="input" type="date" style="width:145px;" value="${dashFilter.from}" onchange="dashFilter.from=this.value;renderMain()">
+        <span style="color:var(--ink-faint);">→</span>
+        <input class="input" type="date" style="width:145px;" value="${dashFilter.to}" onchange="dashFilter.to=this.value;renderMain()">
+      </div>` : ''}
+      ${DB.branches.length>1 ? `<select class="input" style="width:170px;" onchange="dashFilter.branch=this.value;renderMain()">
+        <option value="all" ${dashFilter.branch==='all'?'selected':''}>Tất cả cơ sở</option>
+        ${DB.branches.map(b=>`<option value="${b.id}" ${dashFilter.branch===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
+      </select>` : ''}
+    </div>
+
+    <div class="hero-card">
+      <div class="hero-top">
+        <div>
+          <div class="hero-label">Doanh thu thuần <span class="hero-dot"></span></div>
+          <div class="hero-date">📅 ${rangeLabel(dashFilter)} · đến ${fmtDate(range.to)}</div>
+        </div>
+        <button class="hero-link" onclick="setTab('orders')">Xem chi tiết »</button>
+      </div>
+      <div class="hero-bottom">
+        <span class="hero-growth">${revenueGrowth>=0?'↗':'↘'} ${Math.abs(revenueGrowth)}%</span>
+        <span class="hero-amount">${vnd(revenue)}</span>
+      </div>
+    </div>
+
+    <div class="stats-row">
+      ${statCard('🧾','var(--icon-green)','Tổng đơn', activeOrders.length, orderGrowth)}
+      ${statCard('💳','var(--icon-gold)','Giá trị đơn TB', vnd(avgOrder), avgGrowth)}
+      ${statCard('📦','var(--icon-blue)','Sản phẩm đã bán', qtySold, qtyGrowth)}
+    </div>
+
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="panel-title" style="margin-bottom:6px;">Doanh thu — Hiện tại so với kỳ trước</div>
+      <div class="linechart-legend">
+        <span class="legend-dot"><span class="legend-swatch" style="background:var(--green);"></span>Hiện tại</span>
+        <span class="legend-dot"><span class="legend-swatch" style="background:var(--gold);"></span>Kỳ trước</span>
+      </div>
+      ${renderLineChart(currentSeries, prevSeries)}
+    </div>
+
+    <div class="section-header" style="margin-bottom:6px;">
+      <div class="panel-title" style="margin:0;font-size:16px;">Thao tác nhanh</div>
+      <button class="hero-link" style="color:var(--green);" onclick="setTab('orders')">Xem tất cả</button>
+    </div>
+    <div class="quick-actions">
+      <button class="qa-item" onclick="openOrderModal()"><span class="qa-icon" style="background:var(--icon-green);">🛒</span><span class="qa-label">Tạo đơn hàng</span></button>
+      <button class="qa-item" onclick="setTab('customers')"><span class="qa-icon" style="background:var(--icon-blue);">👥</span><span class="qa-label">Khách hàng</span></button>
+      <button class="qa-item" onclick="setTab('subscriptions')"><span class="qa-icon" style="background:var(--icon-gold);">🔁</span><span class="qa-label">Gói đăng ký</span></button>
+      <button class="qa-item" onclick="setTab('products')"><span class="qa-icon" style="background:var(--icon-red);">📦</span><span class="qa-label">Sản phẩm</span></button>
+    </div>
+
+    <div class="panel-title" style="font-size:16px;margin-bottom:12px;">Đơn hàng chờ xử lý</div>
+    <div class="pending-row">
+      <button class="pending-chip" onclick="ordersFilter.status='cho_xac_nhan';ordersFilter.mode='all';setTab('orders')">
+        <div><div class="pending-chip-label">Chờ xác nhận</div><div class="pending-chip-value">${pendingConfirm}</div></div>
+        <span class="pending-chip-arrow">›</span>
+      </button>
+      <button class="pending-chip" onclick="ordersFilter.status='all';ordersFilter.mode='all';setTab('orders')">
+        <div><div class="pending-chip-label">Chưa giao hàng</div><div class="pending-chip-value">${notDelivered}</div></div>
+        <span class="pending-chip-arrow">›</span>
+      </button>
+    </div>
+
+    <div class="dash-grid">
+      <div class="dash-col panel">
+        <div class="section-header" style="margin-bottom:14px;">
+          <div class="panel-title" style="margin:0;">Cần giao hôm nay</div>
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:12.5px;" onclick="setTab('orders')">Xem tất cả</button>
+        </div>
+        ${upcoming.length===0 ? `<div style="font-size:13px;color:var(--ink-faint);padding:20px 0;text-align:center;">Không còn đơn nào cần giao hôm nay 🎉</div>` :
+          upcoming.slice(0,6).map(o=>`<div class="upcoming-row">
+            <div><div style="font-size:13.5px;font-weight:600;">${escapeHtml(o.customerName)}</div>
+            <div style="font-size:12px;color:var(--ink-faint);">${o.deliveryTime||'—'} · ${o.items.length} sản phẩm</div></div>
+            <span class="badge" style="color:${statusOf(o.status).color};background:${statusOf(o.status).color}1A;">${statusOf(o.status).label}</span>
+          </div>`).join('')
+        }
+      </div>
+      <div class="dash-col panel">
+        <div class="section-header" style="margin-bottom:14px;">
+          <div class="panel-title" style="margin:0;">⚠️ Khách sắp hết gói đăng ký</div>
+          <button class="btn btn-ghost" style="padding:5px 10px;font-size:12.5px;" onclick="setTab('subscriptions')">Xem tất cả gói</button>
+        </div>
+        ${alerts.length===0 ? `<div style="font-size:13px;color:var(--ink-faint);padding:8px 0;">Chưa có khách nào sắp hết gói. 👍</div>` :
+          `<div class="alert-list">${alerts.map(s=>`<div class="alert-item ${s.remainingQty===0?'danger':''}">
+            <div><div class="alert-name">${escapeHtml(s.customerName)}</div><div class="alert-sub">Còn lại ${s.remainingQty}/${s.pkg?.totalQty??'?'} ${escapeHtml(s.pkg?.unitLabel||'ly')} · ${escapeHtml(s.pkg?.name||'Gói')}</div></div>
+            <button class="btn btn-ghost" style="padding:6px 10px;font-size:12.5px;" onclick="renewSubscriber('${s.id}')">Gia hạn</button>
+          </div>`).join('')}</div>`
+        }
+      </div>
+    </div>
+  `;
+}
+function setDashRange(mode){
+  dashFilter.mode = mode;
+  if(mode==='custom' && !dashFilter.from){ dashFilter.from = todayISO(); dashFilter.to = todayISO(); }
+  renderMain();
+}
+
+/* ================= ORDERS ================= */
+function renderOrdersTab(){
+  const range = resolveRange(ordersFilter);
+  const rangeOrders = ordersInRange(range, ordersFilter.branch==='all'?null:ordersFilter.branch);
+  const rangeRevenue = rangeOrders.filter(o=>o.status!=='da_huy').reduce((s,o)=>s+o.total,0);
+  return `
+    ${sectionHeader('Đơn hàng', 'Theo dõi và cập nhật đơn hàng cần lên & cần giao mỗi ngày',
+      `<button class="btn btn-solid" onclick="openOrderModal()">＋ Tạo đơn mới</button>`)}
+    <div class="range-row">
+      ${['today','week','month','all','custom'].map(m=>`<button class="range-pill ${ordersFilter.mode===m?'active':''}" onclick="setOrdersRange('${m}')">${rangeLabel({mode:m})}</button>`).join('')}
+      ${ordersFilter.mode==='custom' ? `<div class="range-dates">
+        <input class="input" type="date" style="width:145px;" value="${ordersFilter.from}" onchange="ordersFilter.from=this.value;refreshOrdersList()">
+        <span style="color:var(--ink-faint);">→</span>
+        <input class="input" type="date" style="width:145px;" value="${ordersFilter.to}" onchange="ordersFilter.to=this.value;refreshOrdersList()">
+      </div>` : ''}
+      <span style="font-size:12.5px;color:var(--ink-soft);margin-left:auto;">${rangeOrders.length} đơn · <strong style="color:var(--green)">${vnd(rangeRevenue)}</strong></span>
+    </div>
+    <div class="filters-row">
+      <select class="input" id="fltStatus" style="width:170px;" onchange="ordersFilter.status=this.value;refreshOrdersList()">
+        <option value="all">Tất cả trạng thái</option>
+        ${STATUS.map(s=>`<option value="${s.key}" ${ordersFilter.status===s.key?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+      ${DB.branches.length>1 ? `<select class="input" id="fltBranch" style="width:170px;" onchange="ordersFilter.branch=this.value;refreshOrdersList()">
+        <option value="all" ${ordersFilter.branch==='all'?'selected':''}>Tất cả cơ sở</option>
+        ${DB.branches.map(b=>`<option value="${b.id}" ${ordersFilter.branch===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
+      </select>` : ''}
+      <div class="search-wrap"><span class="search-icon">🔍</span><input class="input" id="fltSearch" placeholder="Tìm theo tên / SĐT khách..." value="${escapeHtml(ordersFilter.search)}" oninput="ordersFilter.search=this.value;refreshOrdersList()"></div>
+    </div>
+    <div id="ordersListContainer"></div>
+  `;
+}
+function setOrdersRange(mode){
+  ordersFilter.mode = mode;
+  if(mode==='custom' && (!ordersFilter.from)){ ordersFilter.from = todayISO(); ordersFilter.to = todayISO(); }
+  renderMain();
+}
+function refreshOrdersList(){
+  const container = document.getElementById('ordersListContainer');
+  if(!container) return;
+  const range = resolveRange(ordersFilter);
+  let list = DB.orders.filter(o => o.deliveryDate>=range.from && o.deliveryDate<=range.to)
+    .filter(o => ordersFilter.branch==='all' || o.branchId===ordersFilter.branch)
+    .filter(o => ordersFilter.status==='all' || o.status===ordersFilter.status)
+    .filter(o => !ordersFilter.search || o.customerName.toLowerCase().includes(ordersFilter.search.toLowerCase()) || (o.phone||'').includes(ordersFilter.search))
+    .sort((a,b)=>(a.deliveryDate+a.deliveryTime).localeCompare(b.deliveryDate+b.deliveryTime));
+
+  if(list.length===0){
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Chưa có đơn hàng nào</div><div class="empty-sub">Tạo đơn đầu tiên để bắt đầu theo dõi giao hàng.</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openOrderModal()">＋ Tạo đơn mới</button></div></div>`;
+    return;
+  }
+  container.innerHTML = list.map(o=>{
+    const st = statusOf(o.status);
+    const cust = DB.customers.find(c=>c.id===o.customerId);
+    const totalQty = o.items.reduce((s,it)=>s+it.qty,0);
+    return `<div class="order-row" style="border-left:4px solid ${st.color};">
+      <div style="min-width:180px;flex:1 1 180px;">
+        <div class="order-name">${escapeHtml(o.customerName)} ${cust&&cust.vip?'⭐':''}</div>
+        <div class="order-sub">📍 ${escapeHtml(o.address||'—')}</div>
+        ${o.phone?`<div class="order-sub">📞 ${escapeHtml(o.phone)}</div>`:''}
+        ${o.branchId ? `<div style="margin-top:6px;"><span class="branch-pill">🏬 ${escapeHtml(branchName(o.branchId))}</span></div>` : ''}
+      </div>
+      <div style="min-width:200px;flex:1 1 220px;" class="order-items">
+        ${o.items.map(it=>`<div>${escapeHtml(it.name)} × ${it.qty}</div>`).join('')}
+        ${o.subscriberId ? `<div class="order-total" style="color:var(--blue);">🔁 Trừ ${totalQty} từ gói đăng ký</div>` : `<div class="order-total">${vnd(o.total)}</div>`}
+      </div>
+      <div class="order-time">⏰ ${fmtDate(o.deliveryDate)} ${o.deliveryTime?`· ${o.deliveryTime}`:''}</div>
+      <select class="input status-select" style="width:155px;color:${st.color};border-color:${st.color}55;" onchange="changeOrderStatus('${o.id}', this.value)">
+        ${STATUS.map(s=>`<option value="${s.key}" ${o.status===s.key?'selected':''}>${s.label}</option>`).join('')}
+      </select>
+      <div style="display:flex;gap:2px;">
+        <button class="icon-btn" onclick="openOrderModal('${o.id}')" title="Sửa">✎</button>
+        <button class="icon-btn" onclick="deleteOrder('${o.id}')" title="Xóa">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+function restoreSubscriberQty(subscriberId, qty){
+  const s = subscriberOf(subscriberId);
+  if(!s) return;
+  const pkg = packageOf(s.packageId);
+  const cap = pkg ? pkg.totalQty : (s.remainingQty + qty);
+  s.remainingQty = Math.min(cap, s.remainingQty + qty);
+  persistSubscribers();
+}
+function changeOrderStatus(id, status){
+  const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  if(status==='da_huy' && o.subscriberId && !o.subRestored){
+    const qty = o.items.reduce((s,it)=>s+it.qty,0);
+    restoreSubscriberQty(o.subscriberId, qty);
+    o.subRestored = true;
+  }
+  o.status = status; persistOrders(); refreshOrdersList();
+  if(TAB==='dashboard') renderMain();
+}
+function deleteOrder(id){
+  if(!confirm('Xóa đơn hàng này?')) return;
+  const o = DB.orders.find(x=>x.id===id);
+  if(o && o.subscriberId && !o.subRestored){
+    const qty = o.items.reduce((s,it)=>s+it.qty,0);
+    restoreSubscriberQty(o.subscriberId, qty);
+  }
+  DB.orders = DB.orders.filter(o=>o.id!==id); persistOrders(); refreshOrdersList();
+}
+
+function orderItemRowHtml(productId, qty){
+  const pid = productId || (DB.products[0] && DB.products[0].id) || '';
+  return `<div class="item-row">
+    <select class="input item-product" onchange="recomputeOrderTotal()">
+      ${DB.products.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${escapeHtml(p.name)} — ${vnd(p.price)}</option>`).join('')}
+    </select>
+    <input type="number" class="input item-qty" min="1" value="${qty||1}" oninput="recomputeOrderTotal()">
+    <button type="button" class="row-remove" onclick="this.closest('.item-row').remove();recomputeOrderTotal()">✕</button>
+  </div>`;
+}
+function addOrderItemRow(){
+  document.getElementById('orderItemsContainer').insertAdjacentHTML('beforeend', orderItemRowHtml());
+  recomputeOrderTotal();
+}
+function recomputeOrderTotal(){
+  const rows = document.querySelectorAll('#orderItemsContainer .item-row');
+  let total = 0, qty = 0;
+  rows.forEach(r=>{
+    const pid = r.querySelector('.item-product').value;
+    const q = Number(r.querySelector('.item-qty').value)||0;
+    const p = DB.products.find(x=>x.id===pid);
+    if(p) total += p.price*q;
+    qty += q;
+  });
+  const subSel = document.getElementById('orderSubSelect');
+  const useSub = subSel && subSel.value;
+  if(useSub){
+    const s = subscriberOf(subSel.value);
+    const pkg = s ? packageOf(s.packageId) : null;
+    if(s && qty>s.remainingQty){
+      subSel.parentElement.querySelector('.sub-overuse-warn')?.remove();
+      const warn = document.createElement('div');
+      warn.className = 'field-hint sub-overuse-warn';
+      warn.style.color = 'var(--red)';
+      warn.textContent = `⚠️ Số lượng đặt (${qty}) vượt quá số còn lại của khách trong gói (${s.remainingQty}${pkg?'/'+pkg.totalQty:''}).`;
+      subSel.parentElement.appendChild(warn);
+    } else {
+      subSel.parentElement.querySelector('.sub-overuse-warn')?.remove();
+    }
+  }
+  const disp = document.getElementById('orderTotalDisplay');
+  if(disp) disp.textContent = useSub ? `Trừ ${qty} từ gói đăng ký` : vnd(total);
+}
+function toggleOrderCustomerMode(mode){
+  document.getElementById('existingCustomerBlock').style.display = mode==='existing' ? 'block' : 'none';
+  document.getElementById('newCustomerBlock').style.display = mode==='new' ? 'block' : 'none';
+  refreshOrderSubOptions(mode==='existing' ? document.getElementById('orderCustomerSelect').value : '');
+}
+function fillCustomerContact(customerId){
+  const c = DB.customers.find(x=>x.id===customerId);
+  if(c){
+    document.getElementById('orderPhone').value = c.phone||'';
+    document.getElementById('orderAddress').value = c.address||'';
+  }
+  refreshOrderSubOptions(customerId);
+}
+function refreshOrderSubOptions(customerId){
+  const block = document.getElementById('orderSubBlock');
+  if(!block) return;
+  // Chỉ liệt kê các gói còn số lượng > 0 — gói đã hết (0 ly) sẽ không thể chọn để trừ vào đơn.
+  const subs = DB.subscribers.filter(s=>s.customerId===customerId && s.status==='dang_hoat_dong' && s.remainingQty>0);
+  const exhausted = DB.subscribers.filter(s=>s.customerId===customerId && s.status==='dang_hoat_dong' && s.remainingQty<=0);
+  block.innerHTML = `
+    <div class="field">
+      <span class="field-label">Dùng gói đăng ký (tự động trừ số lượng)</span>
+      <select class="input" id="orderSubSelect" onchange="applySubSelection(this.value)">
+        <option value="">— Không dùng gói —</option>
+        ${subs.map(s=>{
+          const pkg = packageOf(s.packageId);
+          return `<option value="${s.id}">${escapeHtml(pkg?pkg.name:'Gói')} — còn ${s.remainingQty}/${pkg?pkg.totalQty:s.remainingQty} ${escapeHtml(pkg?.unitLabel||'ly')}</option>`;
+        }).join('')}
+      </select>
+      <span class="field-hint">Chọn gói để tự điền số lượng, và trừ vào gói khi lưu đơn.</span>
+      ${exhausted.length>0 ? exhausted.map(s=>{
+        const pkg = packageOf(s.packageId);
+        return `<div class="field-hint" style="color:var(--red);">⚠️ Gói "${escapeHtml(pkg?pkg.name:'Gói')}" của khách đã hết (0${pkg?'/'+pkg.totalQty:''} ${escapeHtml(pkg?.unitLabel||'ly')}) — không thể trừ thêm, hãy làm mới chu kỳ trong mục Gói đăng ký.</div>`;
+      }).join('') : ''}
+    </div>`;
+}
+function applySubSelection(subId){
+  if(!subId){ recomputeOrderTotal(); return; }
+  const s = subscriberOf(subId);
+  if(!s || s.remainingQty<=0){ alert('Gói này đã hết số lượng, không thể dùng cho đơn hàng.'); recomputeOrderTotal(); return; }
+  const container = document.getElementById('orderItemsContainer');
+  const qty = Math.max(1, s.remainingQty);
+  container.innerHTML = orderItemRowHtml(DB.products[0]?.id, qty);
+  recomputeOrderTotal();
+}
+function openOrderModal(orderId){
+  const order = orderId ? DB.orders.find(o=>o.id===orderId) : null;
+  const hasCustomers = DB.customers.length>0;
+
+  const body = `
+    <form id="orderForm" onsubmit="submitOrder(event,'${orderId||''}')">
+      ${order ? `
+        <div class="field"><span class="field-label">Khách hàng</span><input class="input" value="${escapeHtml(order.customerName)}" disabled></div>
+        <input type="hidden" id="orderExistingCustomerId" value="${order.customerId}">
+      ` : `
+        <div class="mode-toggle">
+          <label><input type="radio" name="customerMode" value="existing" ${hasCustomers?'checked':''} onchange="toggleOrderCustomerMode('existing')"><span>Khách có sẵn</span></label>
+          <label><input type="radio" name="customerMode" value="new" ${hasCustomers?'':'checked'} onchange="toggleOrderCustomerMode('new')"><span>Khách mới</span></label>
+        </div>
+        <div id="existingCustomerBlock" style="display:${hasCustomers?'block':'none'};">
+          <div class="field"><span class="field-label">Chọn khách hàng</span>
+            <select class="input" id="orderCustomerSelect" onchange="fillCustomerContact(this.value)">
+              <option value="">— Chọn khách hàng —</option>
+              ${DB.customers.map(c=>`<option value="${c.id}">${escapeHtml(c.name)} ${c.phone?'· '+escapeHtml(c.phone):''}</option>`).join('')}
+            </select>
+          </div>
+          <div id="orderSubBlock"></div>
+        </div>
+        <div id="newCustomerBlock" style="display:${hasCustomers?'none':'block'};">
+          <div class="field"><span class="field-label">Tên khách hàng</span><input class="input" id="orderNewName" placeholder="Nguyễn Văn A"></div>
+        </div>
+      `}
+      <div class="field-row">
+        <div class="field"><span class="field-label">Số điện thoại</span><input class="input" id="orderPhone" value="${escapeHtml(order?.phone||'')}" placeholder="09xxxxxxxx"></div>
+        <div class="field"><span class="field-label">Trạng thái giao</span>
+          <select class="input" id="orderStatus">${STATUS.map(s=>`<option value="${s.key}" ${(order?.status||'cho_xac_nhan')===s.key?'selected':''}>${s.label}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><span class="field-label">Địa chỉ giao hàng</span><input class="input" id="orderAddress" value="${escapeHtml(order?.address||'')}" placeholder="Số nhà, đường, phường/xã, quận/huyện..."></div>
+        <div class="field"><span class="field-label">Cơ sở</span>
+          <select class="input" id="orderBranch">${DB.branches.map(b=>`<option value="${b.id}" ${(order?.branchId||DB.branches[0]?.id)===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field"><span class="field-label">Ngày giao</span><input class="input" type="date" id="orderDeliveryDate" value="${order?.deliveryDate||todayISO()}"></div>
+        <div class="field"><span class="field-label">Giờ giao</span><input class="input" type="time" id="orderDeliveryTime" value="${order?.deliveryTime||''}"></div>
+      </div>
+      <div class="field">
+        <span class="field-label">Sản phẩm đặt</span>
+        <div id="orderItemsContainer">
+          ${(order?.items?.length ? order.items : [{productId:DB.products[0]?.id, qty:1}]).map(it=>orderItemRowHtml(it.productId,it.qty)).join('')}
+        </div>
+        <button type="button" class="add-row-btn" onclick="addOrderItemRow()">＋ Thêm sản phẩm</button>
+      </div>
+      <div class="field"><span class="field-label">Ghi chú đơn hàng</span><textarea class="input" id="orderNote">${escapeHtml(order?.note||'')}</textarea><span class="field-hint">Ví dụ: ít đường, giao trước cổng, thanh toán chuyển khoản...</span></div>
+      <div class="total-row"><span class="total-label">Tổng tiền</span><span class="total-value" id="orderTotalDisplay">${vnd(order?.total||0)}</span></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">${order?'Lưu thay đổi':'Tạo đơn hàng'}</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal(order?'Sửa đơn hàng':'Tạo đơn hàng mới', body, true);
+  recomputeOrderTotal();
+  if(!order && hasCustomers) refreshOrderSubOptions(document.getElementById('orderCustomerSelect').value);
+}
+
+/* ================= POPUP TẠO ĐƠN NHANH ================= */
+function openQuickOrderModal(){
+  const hasCustomers = DB.customers.length>0;
+  const body = `
+    <form id="quickOrderForm" onsubmit="submitOrder(event,'')">
+      <div class="mode-toggle">
+        <label><input type="radio" name="customerMode" value="existing" ${hasCustomers?'checked':''} onchange="toggleOrderCustomerMode('existing')"><span>Khách có sẵn</span></label>
+        <label><input type="radio" name="customerMode" value="new" ${hasCustomers?'':'checked'} onchange="toggleOrderCustomerMode('new')"><span>Khách mới</span></label>
+      </div>
+      <div id="existingCustomerBlock" style="display:${hasCustomers?'block':'none'};">
+        <div class="field"><span class="field-label">Chọn khách hàng</span>
+          <select class="input" id="orderCustomerSelect" onchange="fillCustomerContact(this.value)">
+            <option value="">— Chọn khách hàng —</option>
+            ${DB.customers.map(c=>`<option value="${c.id}">${escapeHtml(c.name)} ${c.phone?'· '+escapeHtml(c.phone):''}</option>`).join('')}
+          </select>
+        </div>
+        <div id="orderSubBlock"></div>
+      </div>
+      <div id="newCustomerBlock" style="display:${hasCustomers?'none':'block'};">
+        <div class="field"><span class="field-label">Tên khách hàng</span><input class="input" id="orderNewName" placeholder="Nguyễn Văn A"></div>
+      </div>
+      <input type="hidden" id="orderPhone" value="">
+      <input type="hidden" id="orderAddress" value="">
+      <input type="hidden" id="orderStatus" value="cho_xac_nhan">
+      <input type="hidden" id="orderBranch" value="${DB.branches[0]?.id||''}">
+      <input type="hidden" id="orderNote" value="">
+      <div class="field-row">
+        <div class="field"><span class="field-label">Ngày giao</span><input class="input" type="date" id="orderDeliveryDate" value="${todayISO()}"></div>
+        <div class="field"><span class="field-label">Giờ giao</span><input class="input" type="time" id="orderDeliveryTime" value=""></div>
+      </div>
+      <div class="field">
+        <span class="field-label">Sản phẩm đặt</span>
+        <div id="orderItemsContainer">
+          ${orderItemRowHtml(DB.products[0]?.id, 1)}
+        </div>
+        <button type="button" class="add-row-btn" onclick="addOrderItemRow()">＋ Thêm sản phẩm</button>
+      </div>
+      <div class="total-row"><span class="total-label">Tổng tiền</span><span class="total-value" id="orderTotalDisplay">${vnd(0)}</span></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">⚡ Tạo đơn nhanh</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal('Tạo đơn nhanh', body);
+  recomputeOrderTotal();
+  if(hasCustomers) refreshOrderSubOptions(document.getElementById('orderCustomerSelect').value);
+}
+function submitOrder(e, orderId){
+  e.preventDefault();
+  const order = orderId ? DB.orders.find(o=>o.id===orderId) : null;
+  let customerId, customerName;
+
+  if(order){
+    customerId = document.getElementById('orderExistingCustomerId').value;
+    customerName = order.customerName;
+  } else {
+    const mode = document.querySelector('input[name=customerMode]:checked')?.value || 'new';
+    if(mode==='new'){
+      const name = document.getElementById('orderNewName').value.trim();
+      if(!name){ alert('Vui lòng nhập tên khách hàng.'); return; }
+      const newCust = { id:uid(), name, phone:document.getElementById('orderPhone').value, address:document.getElementById('orderAddress').value, vip:false, note:'', createdAt:todayISO() };
+      DB.customers.push(newCust); persistCustomers();
+      customerId = newCust.id; customerName = newCust.name;
+    } else {
+      customerId = document.getElementById('orderCustomerSelect').value;
+      if(!customerId){ alert('Vui lòng chọn khách hàng.'); return; }
+      customerName = DB.customers.find(c=>c.id===customerId)?.name || '';
+    }
+  }
+
+  const rows = document.querySelectorAll('#orderItemsContainer .item-row');
+  const items = [];
+  rows.forEach(r=>{
+    const pid = r.querySelector('.item-product').value;
+    const qty = Number(r.querySelector('.item-qty').value)||1;
+    const p = DB.products.find(x=>x.id===pid);
+    if(p) items.push({ productId:pid, name:p.name, price:p.price, qty });
+  });
+  if(items.length===0){ alert('Vui lòng thêm ít nhất 1 sản phẩm.'); return; }
+  const totalQty = items.reduce((s,it)=>s+it.qty,0);
+
+  const subSelectEl = document.getElementById('orderSubSelect');
+  const chosenSubId = (!order && subSelectEl) ? subSelectEl.value : '';
+
+  // Chặn hẳn việc trừ vào gói nếu gói đã hết (0) hoặc không đủ số lượng còn lại cho đơn này
+  if(chosenSubId){
+    const chosenSub = subscriberOf(chosenSubId);
+    if(!chosenSub || chosenSub.status!=='dang_hoat_dong' || chosenSub.remainingQty<=0){
+      alert('Gói đăng ký của khách đã hết số lượng (0) — không thể tạo đơn trừ từ gói này. Hãy làm mới chu kỳ trong mục Gói đăng ký hoặc bỏ chọn gói.');
+      return;
+    }
+    if(totalQty > chosenSub.remainingQty){
+      alert(`Số lượng đặt (${totalQty}) vượt quá số còn lại của khách trong gói (${chosenSub.remainingQty}). Hãy giảm số lượng hoặc bỏ chọn gói.`);
+      return;
+    }
+  }
+
+  // Nếu đơn cũ đã trừ vào 1 gói đăng ký, hoàn trả số lượng trước khi tính lại
+  if(order && order.subscriberId && !order.subRestored){
+    restoreSubscriberQty(order.subscriberId, order.items.reduce((s,it)=>s+it.qty,0));
+  }
+
+  let subscriberId = null, total = items.reduce((s,it)=>s+it.price*it.qty,0);
+  if(chosenSubId){
+    subscriberId = chosenSubId;
+    const s = subscriberOf(subscriberId);
+    if(s){
+      s.remainingQty = Math.max(0, s.remainingQty - totalQty);
+      persistSubscribers();
+      total = 0;
+    }
+  }
+
+  const newOrder = {
+    id: orderId || uid(),
+    customerId, customerName,
+    phone: document.getElementById('orderPhone').value,
+    address: document.getElementById('orderAddress').value,
+    branchId: document.getElementById('orderBranch').value,
+    items, total,
+    subscriberId, subRestored: false,
+    deliveryDate: document.getElementById('orderDeliveryDate').value,
+    deliveryTime: document.getElementById('orderDeliveryTime').value,
+    status: document.getElementById('orderStatus').value,
+    note: document.getElementById('orderNote').value,
+    createdAt: order?.createdAt || new Date().toISOString(),
+  };
+  if(order) DB.orders = DB.orders.map(o=>o.id===orderId?newOrder:o);
+  else DB.orders.push(newOrder);
+  persistOrders();
+  closeModal();
+  render();
+}
+
+/* ================= CUSTOMERS ================= */
+function customerStats(id){
+  const co = DB.orders.filter(o=>o.customerId===id && o.status!=='da_huy');
+  return { count: co.length, spent: co.reduce((s,o)=>s+o.total,0) };
+}
+function renderCustomersTab(){
+  return `
+    ${sectionHeader('Khách hàng', 'Quản lý thông tin, khách thân thiết và lịch sử mua hàng',
+      `<button class="btn btn-solid" onclick="openCustomerModal()">＋ Thêm khách hàng</button>`)}
+    <div class="search-wrap" style="max-width:320px;margin-bottom:18px;"><span class="search-icon">🔍</span>
+      <input class="input" placeholder="Tìm theo tên / SĐT..." value="${escapeHtml(customersFilter.search)}" oninput="customersFilter.search=this.value;refreshCustomersList()">
+    </div>
+    <div id="customersListContainer"></div>
+  `;
+}
+function refreshCustomersList(){
+  const container = document.getElementById('customersListContainer');
+  if(!container) return;
+  const list = DB.customers.filter(c=>!customersFilter.search || c.name.toLowerCase().includes(customersFilter.search.toLowerCase()) || (c.phone||'').includes(customersFilter.search));
+  if(list.length===0){
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">👥</div><div class="empty-title">Chưa có khách hàng nào</div><div class="empty-sub">Thêm khách hàng để bắt đầu quản lý.</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openCustomerModal()">＋ Thêm khách hàng</button></div></div>`;
+    return;
+  }
+  container.innerHTML = `<div class="grid-cards">${list.map(c=>{
+    const st = customerStats(c.id);
+    const activeSubs = DB.subscribers.filter(s=>s.customerId===c.id && s.status==='dang_hoat_dong').length;
+    return `<div class="card" onclick="openCustomerDetail('${c.id}')">
+      <div class="cust-name">${escapeHtml(c.name)} ${c.vip?'⭐':''}</div>
+      ${c.phone?`<div class="cust-line">📞 ${escapeHtml(c.phone)}</div>`:''}
+      ${c.address?`<div class="cust-line">📍 ${escapeHtml(c.address)}</div>`:''}
+      <div class="cust-stats">
+        <div><strong>${st.count}</strong> <span style="color:var(--ink-faint)">đơn</span></div>
+        <div><strong style="color:var(--green)">${vnd(st.spent)}</strong></div>
+        ${activeSubs>0?`<div><strong style="color:var(--blue)">${activeSubs}</strong> <span style="color:var(--ink-faint)">gói</span></div>`:''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+function openCustomerModal(customerId){
+  const c = customerId ? DB.customers.find(x=>x.id===customerId) : null;
+  const body = `
+    <form onsubmit="submitCustomer(event,'${customerId||''}')">
+      <div class="field"><span class="field-label">Tên khách hàng</span><input class="input" id="custName" value="${escapeHtml(c?.name||'')}"></div>
+      <div class="field"><span class="field-label">Số điện thoại</span><input class="input" id="custPhone" value="${escapeHtml(c?.phone||'')}"></div>
+      <div class="field"><span class="field-label">Địa chỉ</span><input class="input" id="custAddress" value="${escapeHtml(c?.address||'')}"></div>
+      <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="custNote">${escapeHtml(c?.note||'')}</textarea><span class="field-hint">Sở thích, cách pha chế riêng, lưu ý giao hàng...</span></div>
+      <label class="check-label" style="margin-bottom:16px;"><input type="checkbox" id="custVip" ${c?.vip?'checked':''}> Đánh dấu là khách hàng thân thiết</label>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">Lưu</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal(c?'Sửa thông tin khách hàng':'Thêm khách hàng', body);
+}
+function submitCustomer(e, customerId){
+  e.preventDefault();
+  const name = document.getElementById('custName').value.trim();
+  if(!name){ alert('Vui lòng nhập tên khách hàng.'); return; }
+  const existing = customerId ? DB.customers.find(c=>c.id===customerId) : null;
+  const cust = {
+    id: customerId || uid(), name,
+    phone: document.getElementById('custPhone').value,
+    address: document.getElementById('custAddress').value,
+    note: document.getElementById('custNote').value,
+    vip: document.getElementById('custVip').checked,
+    createdAt: existing?.createdAt || todayISO(),
+  };
+  if(existing) DB.customers = DB.customers.map(c=>c.id===customerId?cust:c);
+  else DB.customers.push(cust);
+  persistCustomers();
+  closeModal();
+  render();
+}
+function deleteCustomer(id){
+  if(!confirm('Xóa khách hàng này? (Đơn hàng cũ vẫn được giữ lại)')) return;
+  DB.customers = DB.customers.filter(c=>c.id!==id);
+  persistCustomers();
+  closeModal();
+  render();
+}
+function openCustomerDetail(id){
+  const c = DB.customers.find(x=>x.id===id); if(!c) return;
+  const st = customerStats(id);
+  const hist = DB.orders.filter(o=>o.customerId===id).slice().reverse().slice(0,8);
+  const custSubs = DB.subscribers.filter(s=>s.customerId===id);
+  const body = `
+    ${c.phone?`<div class="detail-line">📞 ${escapeHtml(c.phone)}</div>`:''}
+    ${c.address?`<div class="detail-line">📍 ${escapeHtml(c.address)}</div>`:''}
+    ${c.note?`<div class="detail-note">${escapeHtml(c.note)}</div>`:''}
+    <div class="detail-stats">
+      <div class="detail-stat"><div class="detail-stat-label">Tổng đơn</div><div class="detail-stat-value">${st.count}</div></div>
+      <div class="detail-stat"><div class="detail-stat-label">Tổng chi tiêu</div><div class="detail-stat-value" style="color:var(--green)">${vnd(st.spent)}</div></div>
+    </div>
+    ${custSubs.length>0 ? `<div style="font-size:13px;font-weight:700;margin-bottom:8px;">Gói đăng ký</div>
+      <div style="margin-bottom:16px;">${custSubs.map(s=>{
+        const pkg = packageOf(s.packageId) || {};
+        const totalQty = pkg.totalQty || s.remainingQty || 1;
+        const threshold = pkg.warningThreshold ?? 2;
+        const low = s.remainingQty<=threshold;
+        return `<div style="margin-bottom:10px;">
+          <div class="progress-label"><span>${escapeHtml(pkg.name||'Gói')} (${subStatusOf(s.status).label})</span><span>${s.remainingQty}/${totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</span></div>
+          <div class="progress-track"><div class="progress-fill ${s.remainingQty===0?'empty':low?'low':''}" style="width:${Math.min(100,(s.remainingQty/totalQty)*100)}%;"></div></div>
+          ${low ? `<div style="font-size:12px;color:${s.remainingQty===0?'var(--red)':'var(--gold)'};">⚠️ ${s.remainingQty===0?'Đã dùng hết gói — không thể trừ thêm, nên gia hạn':'Sắp hết gói — nhắc khách gia hạn'}</div>` : ''}
+        </div>`;
+      }).join('')}</div>` : ''}
+    <div style="font-size:13px;font-weight:700;margin-bottom:8px;">Lịch sử đơn gần đây</div>
+    <div class="hist-list">
+      ${hist.length===0 ? `<div style="font-size:12.5px;color:var(--ink-faint);">Chưa có đơn hàng nào.</div>` :
+        hist.map(o=>`<div class="hist-row"><span>${fmtDate(o.deliveryDate)}</span><span>${escapeHtml(o.items.map(i=>i.name).join(', '))}</span><span style="font-weight:700;">${vnd(o.total)}</span></div>`).join('')}
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="closeModal();openCustomerModal('${c.id}')">✎ Sửa</button>
+      <button class="btn btn-danger" onclick="deleteCustomer('${c.id}')">🗑 Xóa</button>
+    </div>
+  `;
+  openModal(c.name, body);
+}
+
+/* ================= SUBSCRIPTIONS (GÓI ĐĂNG KÝ) =================
+   1 gói (package) là mẫu dùng chung: tên, loại tuần/tháng, tổng số lượng,
+   đơn vị tính, giá... Nhiều khách hàng (subscriber) có thể cùng đăng ký 1
+   gói; mỗi khách có số lượng còn lại riêng, mặc định = tổng số lượng gói
+   (vd 12/12 ly) và giảm dần khi tạo đơn cho khách đó. */
+function renderSubscriptionsTab(){
+  return `
+    ${sectionHeader('Gói đăng ký', 'Tạo 1 gói dùng chung, thêm nhiều khách hàng cùng đăng ký — mỗi khách có số lượng riêng',
+      `<button class="btn btn-solid" onclick="openPackageModal()">＋ Tạo gói mới</button>`)}
+    ${DB.packages.length===0 ? `<div class="empty-state"><div class="empty-icon">🔁</div><div class="empty-title">Chưa có gói đăng ký nào</div><div class="empty-sub">Tạo gói (ví dụ "Gói tháng 12 ly"), sau đó thêm khách hàng vào gói.</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openPackageModal()">＋ Tạo gói mới</button></div></div>` :
+      `<div class="grid-cards">${DB.packages.map(pkg=>{
+        const subs = DB.subscribers.filter(s=>s.packageId===pkg.id);
+        const activeCount = subs.filter(s=>s.status==='dang_hoat_dong').length;
+        const lowCount = subs.filter(s=>s.status==='dang_hoat_dong' && s.remainingQty<=(pkg.warningThreshold??2)).length;
+        const schedule = pkg.packageType==='tuan' ? `Giao: ${(pkg.weekdays||[]).join(', ')||'—'}` : `Ngày ${pkg.monthDay||'?'} hàng tháng`;
+        return `<div class="pkg-compact-card" onclick="openPackageDetail('${pkg.id}')">
+          <div class="pkg-compact-head">
+            <div>
+              <div class="pkg-compact-name">${escapeHtml(pkg.name)}</div>
+              <div class="pkg-compact-meta">${pkg.packageType==='tuan'?'Theo tuần':'Theo tháng'} · ${schedule}</div>
+            </div>
+            <span style="font-weight:800;color:var(--green);white-space:nowrap;">${vnd(pkg.price)}</span>
+          </div>
+          <div class="pkg-compact-meta" style="margin-top:8px;">Mỗi khách được cấp <strong style="color:var(--ink);">${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</strong> / chu kỳ</div>
+          <div class="pkg-compact-foot">
+            <span class="pkg-sub-count">👥 ${subs.length} khách${activeCount!==subs.length?` (${activeCount} hoạt động)`:''}</span>
+            ${lowCount>0 ? `<span style="color:var(--red);font-size:12px;font-weight:700;">⚠️ ${lowCount} sắp/đã hết</span>` : `<span style="color:var(--ink-faint);">Xem chi tiết ›</span>`}
+          </div>
+        </div>`;
+      }).join('')}</div>`
+    }
+  `;
+}
+function openPackageDetail(packageId){
+  const pkg = packageOf(packageId); if(!pkg) return;
+  const subs = DB.subscribers.filter(s=>s.packageId===packageId);
+  const schedule = pkg.packageType==='tuan' ? `Giao vào: ${(pkg.weekdays||[]).join(', ')||'—'}` : `Chu kỳ: ngày ${pkg.monthDay||'?'} hàng tháng`;
+  const threshold = pkg.warningThreshold ?? 2;
+  const body = `
+    <div class="detail-line">${pkg.packageType==='tuan'?'📅 Gói theo tuần':'📅 Gói theo tháng'} · ${schedule}</div>
+    <div class="detail-line">💰 ${vnd(pkg.price)} / chu kỳ · Mỗi khách mới được cấp <strong>${pkg.totalQty}/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</strong></div>
+    <div class="detail-line">⚠️ Cảnh báo khi khách còn ≤ ${threshold} ${escapeHtml(pkg.unitLabel||'ly')} · Khách còn 0 sẽ không thể trừ thêm khi tạo đơn</div>
+    ${pkg.note?`<div class="detail-note">${escapeHtml(pkg.note)}</div>`:''}
+    <div style="display:flex;gap:8px;margin:14px 0 18px;">
+      <button class="btn btn-ghost" onclick="openPackageModal('${pkg.id}')">✎ Sửa gói</button>
+      <button class="btn btn-danger" onclick="deletePackage('${pkg.id}')">🗑 Xóa gói</button>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+      <span style="font-size:13px;font-weight:700;color:var(--ink-soft);">Khách đăng ký (${subs.length})</span>
+      <button class="btn btn-ghost" style="padding:6px 10px;font-size:12.5px;" onclick="openSubscriberModal('${pkg.id}')">＋ Thêm khách vào gói</button>
+    </div>
+    ${subs.length===0 ? `<div style="font-size:12.5px;color:var(--ink-faint);padding:10px 0;">Chưa có khách hàng nào đăng ký gói này.</div>` :
+      subs.map(s=>{
+        const stc = subStatusOf(s.status);
+        const empty = s.remainingQty<=0;
+        const low = !empty && s.remainingQty<=threshold;
+        const pct = Math.min(100,(s.remainingQty/pkg.totalQty)*100);
+        return `<div class="subscriber-row">
+          <div style="flex:1;min-width:170px;">
+            <div class="subscriber-name">${escapeHtml(s.customerName)}</div>
+            <div class="progress-label"><span>Còn lại</span><span><strong>${s.remainingQty}</strong>/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</span></div>
+            <div class="progress-track"><div class="progress-fill ${empty?'empty':low?'low':''}" style="width:${pct}%;"></div></div>
+            ${empty ? `<div style="font-size:11.5px;font-weight:700;color:var(--red);margin-top:2px;">⚠️ Đã hết — không thể trừ thêm cho đến khi làm mới chu kỳ</div>`
+              : low ? `<div style="font-size:11.5px;font-weight:700;color:var(--gold);margin-top:2px;">⚠️ Sắp hết — nên nhắc khách gia hạn</div>` : ''}
+            <div style="font-size:11px;color:var(--ink-faint);margin-top:2px;">Từ ${fmtDate(s.startDate)}</div>
+          </div>
+          <div class="subscriber-actions">
+            <span class="badge" style="color:${stc.color};background:${stc.color}1A;">${stc.label}</span>
+            <select onchange="setSubscriberStatus('${s.id}', this.value)">
+              ${SUB_STATUS.map(x=>`<option value="${x.key}" ${s.status===x.key?'selected':''}>${x.label}</option>`).join('')}
+            </select>
+            <button class="icon-btn" onclick="renewSubscriber('${s.id}')" title="Làm mới chu kỳ (về ${pkg.totalQty}/${pkg.totalQty})">🔄</button>
+            <button class="icon-btn" onclick="editSubscriberQty('${s.id}')" title="Chỉnh số lượng còn lại">✎</button>
+            <button class="icon-btn" onclick="removeSubscriber('${s.id}')" title="Xóa khỏi gói">🗑</button>
+          </div>
+        </div>`;
+      }).join('')
+    }
+  `;
+  openModal(pkg.name, body, true);
+}
+function modalOpenNow(){ return document.getElementById('modalRoot').innerHTML.trim().length>0; }
+function setSubscriberStatus(id, status){
+  const s = subscriberOf(id); if(!s) return;
+  s.status = status; persistSubscribers();
+  if(modalOpenNow()) openPackageDetail(s.packageId);
+  render();
+}
+function renewSubscriber(id){
+  const s = subscriberOf(id); if(!s) return;
+  const pkg = packageOf(s.packageId); if(!pkg) return;
+  if(!confirm(`Làm mới chu kỳ cho ${s.customerName}? Số lượng còn lại sẽ trở về ${pkg.totalQty}/${pkg.totalQty} ${pkg.unitLabel||'ly'}.`)) return;
+  s.remainingQty = pkg.totalQty;
+  persistSubscribers();
+  if(modalOpenNow()) openPackageDetail(pkg.id);
+  render();
+}
+function editSubscriberQty(id){
+  const s = subscriberOf(id); if(!s) return;
+  const pkg = packageOf(s.packageId); if(!pkg) return;
+  const val = prompt(`Nhập số lượng còn lại cho ${s.customerName} (tối đa ${pkg.totalQty}):`, s.remainingQty);
+  if(val===null) return;
+  const n = Number(val);
+  if(isNaN(n) || n<0){ alert('Số lượng không hợp lệ.'); return; }
+  s.remainingQty = Math.min(pkg.totalQty, n);
+  persistSubscribers();
+  if(modalOpenNow()) openPackageDetail(pkg.id);
+  render();
+}
+function removeSubscriber(id){
+  if(!confirm('Xóa khách này khỏi gói đăng ký?')) return;
+  const s = subscriberOf(id); const pkgId = s?.packageId;
+  DB.subscribers = DB.subscribers.filter(x=>x.id!==id);
+  persistSubscribers();
+  if(pkgId && modalOpenNow()) openPackageDetail(pkgId);
+  render();
+}
+function deletePackage(id){
+  if(!confirm('Xóa gói này? Tất cả khách đã đăng ký gói cũng sẽ bị xóa khỏi gói.')) return;
+  DB.packages = DB.packages.filter(p=>p.id!==id);
+  DB.subscribers = DB.subscribers.filter(s=>s.packageId!==id);
+  persistPackages(); persistSubscribers();
+  closeModal();
+  render();
+}
+function togglePackageType(type){
+  document.getElementById('packageWeeklyBlock').style.display = type==='tuan' ? 'block' : 'none';
+  document.getElementById('packageMonthlyBlock').style.display = type==='thang' ? 'block' : 'none';
+}
+function openPackageModal(packageId){
+  const pkg = packageId ? packageOf(packageId) : null;
+  const packageType = pkg?.packageType || 'tuan';
+  const body = `
+    <form onsubmit="submitPackage(event,'${packageId||''}')">
+      <div class="field"><span class="field-label">Tên gói</span><input class="input" id="pkgName" value="${escapeHtml(pkg?.name||'')}" placeholder="Gói tháng 12 ly"></div>
+      <div class="field-row">
+        <div class="field"><span class="field-label">Loại gói</span>
+          <select class="input" id="pkgType" onchange="togglePackageType(this.value)">
+            <option value="tuan" ${packageType==='tuan'?'selected':''}>Theo tuần</option>
+            <option value="thang" ${packageType==='thang'?'selected':''}>Theo tháng</option>
+          </select>
+        </div>
+        <div class="field"><span class="field-label">Giá gói (đ)</span><input class="input" type="number" id="pkgPrice" value="${pkg?.price||''}"></div>
+      </div>
+      <div id="packageWeeklyBlock" class="field" style="display:${packageType==='tuan'?'block':'none'};">
+        <span class="field-label">Ngày giao trong tuần</span>
+        <div class="weekday-row">${WEEKDAYS.map(d=>`<label class="weekday-item"><input type="checkbox" value="${d}" ${(pkg?.weekdays||[]).includes(d)?'checked':''}><span>${d}</span></label>`).join('')}</div>
+      </div>
+      <div id="packageMonthlyBlock" class="field" style="display:${packageType==='thang'?'block':'none'};">
+        <span class="field-label">Giao vào ngày (hàng tháng)</span>
+        <input class="input" type="number" min="1" max="31" id="pkgMonthDay" value="${pkg?.monthDay||1}" style="width:100px;">
+      </div>
+      <div class="field-row">
+        <div class="field"><span class="field-label">Tổng số lượng mỗi khách / chu kỳ</span><input class="input" type="number" min="1" id="pkgTotalQty" value="${pkg?.totalQty||12}"></div>
+        <div class="field"><span class="field-label">Đơn vị tính</span><input class="input" id="pkgUnitLabel" value="${escapeHtml(pkg?.unitLabel||'ly')}" placeholder="ly, chai, hộp..."></div>
+      </div>
+      <div class="field-hint" style="margin:-8px 0 14px;">Mỗi khách hàng thêm vào gói này sẽ mặc định được cấp đủ số lượng trên (ví dụ 12/12), dùng dần cho bất kỳ sản phẩm nào.</div>
+      <div class="field"><span class="field-label">Cảnh báo khi khách còn lại ≤</span><input class="input" type="number" min="0" id="pkgWarnThreshold" value="${pkg?.warningThreshold ?? 2}" style="width:120px;"></div>
+      <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="pkgNote">${escapeHtml(pkg?.note||'')}</textarea></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">${pkg?'Lưu thay đổi':'Tạo gói'}</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal(pkg?'Sửa gói đăng ký':'Tạo gói đăng ký', body, true);
+}
+function submitPackage(e, packageId){
+  e.preventDefault();
+  const name = document.getElementById('pkgName').value.trim();
+  if(!name){ alert('Vui lòng nhập tên gói.'); return; }
+  const packageType = document.getElementById('pkgType').value;
+  const weekdays = packageType==='tuan' ? Array.from(document.querySelectorAll('#packageWeeklyBlock input:checked')).map(el=>el.value) : [];
+  const monthDay = packageType==='thang' ? Number(document.getElementById('pkgMonthDay').value)||1 : null;
+  const totalQty = Number(document.getElementById('pkgTotalQty').value)||1;
+  const unitLabel = document.getElementById('pkgUnitLabel').value.trim() || 'ly';
+  const warningThreshold = Number(document.getElementById('pkgWarnThreshold').value)||0;
+  const price = Number(document.getElementById('pkgPrice').value)||0;
+  const pkg = {
+    id: packageId || uid(), name, packageType, weekdays, monthDay,
+    totalQty, unitLabel, warningThreshold, price,
+    note: document.getElementById('pkgNote').value,
+  };
+  if(packageId) DB.packages = DB.packages.map(p=>p.id===packageId?pkg:p);
+  else DB.packages.push(pkg);
+  persistPackages();
+  closeModal();
+  render();
+}
+function toggleSubscriberCustomerMode(mode){
+  document.getElementById('subrExistingBlock').style.display = mode==='existing' ? 'block' : 'none';
+  document.getElementById('subrNewBlock').style.display = mode==='new' ? 'block' : 'none';
+}
+function openSubscriberModal(packageId){
+  const pkg = packageOf(packageId); if(!pkg) return;
+  const hasCustomers = DB.customers.length>0;
+  const alreadyIds = new Set(DB.subscribers.filter(s=>s.packageId===packageId && s.status!=='ket_thuc').map(s=>s.customerId));
+  const availableCustomers = DB.customers.filter(c=>!alreadyIds.has(c.id));
+  const body = `
+    <form onsubmit="submitSubscriber(event,'${packageId}')">
+      <div class="field-hint" style="margin-bottom:12px;">Thêm khách vào gói "<strong>${escapeHtml(pkg.name)}</strong>". Khách mới sẽ mặc định được cấp <strong>${pkg.totalQty}/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</strong>.</div>
+      <div class="mode-toggle">
+        <label><input type="radio" name="subrMode" value="existing" ${hasCustomers?'checked':''} onchange="toggleSubscriberCustomerMode('existing')"><span>Khách có sẵn</span></label>
+        <label><input type="radio" name="subrMode" value="new" ${hasCustomers?'':'checked'} onchange="toggleSubscriberCustomerMode('new')"><span>Khách mới</span></label>
+      </div>
+      <div id="subrExistingBlock" style="display:${hasCustomers?'block':'none'};">
+        <div class="field"><span class="field-label">Chọn khách hàng</span>
+          <select class="input" id="subrCustomerSelect">
+            <option value="">— Chọn khách hàng —</option>
+            ${availableCustomers.map(c=>`<option value="${c.id}">${escapeHtml(c.name)} ${c.phone?'· '+escapeHtml(c.phone):''}</option>`).join('')}
+          </select>
+          ${availableCustomers.length===0?`<span class="field-hint">Tất cả khách hàng hiện có đều đã đăng ký gói này.</span>`:''}
+        </div>
+      </div>
+      <div id="subrNewBlock" style="display:${hasCustomers?'none':'block'};">
+        <div class="field"><span class="field-label">Tên khách hàng</span><input class="input" id="subrNewName"></div>
+        <div class="field-row">
+          <div class="field"><span class="field-label">SĐT</span><input class="input" id="subrNewPhone"></div>
+          <div class="field"><span class="field-label">Địa chỉ</span><input class="input" id="subrNewAddress"></div>
+        </div>
+      </div>
+      <div class="field"><span class="field-label">Ngày bắt đầu</span><input class="input" type="date" id="subrStartDate" value="${todayISO()}"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">Thêm vào gói (mặc định ${pkg.totalQty}/${pkg.totalQty})</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal('Thêm khách vào gói', body);
+}
+function submitSubscriber(e, packageId){
+  e.preventDefault();
+  const pkg = packageOf(packageId); if(!pkg) return;
+  const mode = document.querySelector('input[name=subrMode]:checked')?.value || 'new';
+  let customerId, customerName;
+  if(mode==='new'){
+    const name = document.getElementById('subrNewName').value.trim();
+    if(!name){ alert('Vui lòng nhập tên khách hàng.'); return; }
+    const newCust = { id:uid(), name, phone:document.getElementById('subrNewPhone').value, address:document.getElementById('subrNewAddress').value, vip:true, note:'', createdAt:todayISO() };
+    DB.customers.push(newCust); persistCustomers();
+    customerId = newCust.id; customerName = newCust.name;
+  } else {
+    customerId = document.getElementById('subrCustomerSelect').value;
+    if(!customerId){ alert('Vui lòng chọn khách hàng.'); return; }
+    customerName = DB.customers.find(c=>c.id===customerId)?.name || '';
+  }
+  const subscriber = {
+    id: uid(), packageId, customerId, customerName,
+    startDate: document.getElementById('subrStartDate').value,
+    status: 'dang_hoat_dong',
+    remainingQty: pkg.totalQty, // mặc định đầy đủ, ví dụ 12/12
+    note: '',
+  };
+  DB.subscribers.push(subscriber);
+  persistSubscribers();
+  openPackageDetail(packageId);
+  render();
+}
+
+/* ================= PRODUCTS ================= */
+function renderProductsTab(){
+  return `
+    ${sectionHeader('Sản phẩm', 'Danh mục các loại sữa hạt đang bán',
+      `<button class="btn btn-solid" onclick="openProductModal()">＋ Thêm sản phẩm</button>`)}
+    ${DB.products.length===0 ? `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Chưa có sản phẩm nào</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openProductModal()">＋ Thêm sản phẩm</button></div></div>` :
+      `<div class="grid-cards">${DB.products.map(p=>`
+        <div class="card card-nohover">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="font-weight:700;font-size:15px;">${escapeHtml(p.name)}</div>
+            <div style="display:flex;gap:2px;">
+              <button class="icon-btn" onclick="openProductModal('${p.id}')">✎</button>
+              <button class="icon-btn" onclick="deleteProduct('${p.id}')">🗑</button>
+            </div>
+          </div>
+          <div style="font-size:11.5px;color:var(--gold);font-weight:700;margin-top:2px;">${escapeHtml(p.category)}</div>
+          <div style="font-size:13px;color:var(--ink-soft);margin:8px 0;">${escapeHtml(p.desc||'')}</div>
+          <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--line-soft);">
+            <span style="font-size:18px;font-weight:800;color:var(--green);">${vnd(p.price)}</span>
+            <span style="font-size:12px;color:var(--ink-faint);">${escapeHtml(p.unit)}</span>
+          </div>
+        </div>
+      `).join('')}</div>`
+    }
+  `;
+}
+function openProductModal(productId){
+  const p = productId ? DB.products.find(x=>x.id===productId) : null;
+  const body = `
+    <form onsubmit="submitProduct(event,'${productId||''}')">
+      <div class="field"><span class="field-label">Tên sản phẩm</span><input class="input" id="prodName" value="${escapeHtml(p?.name||'')}" placeholder="Sữa hạnh nhân"></div>
+      <div class="field-row">
+        <div class="field"><span class="field-label">Danh mục</span><input class="input" id="prodCategory" value="${escapeHtml(p?.category||'Sữa hạt')}"></div>
+        <div class="field"><span class="field-label">Đơn vị</span><input class="input" id="prodUnit" value="${escapeHtml(p?.unit||'chai 500ml')}"></div>
+      </div>
+      <div class="field"><span class="field-label">Giá bán (đ)</span><input class="input" type="number" id="prodPrice" value="${p?.price||''}"></div>
+      <div class="field"><span class="field-label">Mô tả</span><textarea class="input" id="prodDesc">${escapeHtml(p?.desc||'')}</textarea></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">Lưu</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal(p?'Sửa sản phẩm':'Thêm sản phẩm', body);
+}
+function submitProduct(e, productId){
+  e.preventDefault();
+  const name = document.getElementById('prodName').value.trim();
+  if(!name){ alert('Vui lòng nhập tên sản phẩm.'); return; }
+  const prod = {
+    id: productId || uid(), name,
+    category: document.getElementById('prodCategory').value,
+    price: Number(document.getElementById('prodPrice').value)||0,
+    unit: document.getElementById('prodUnit').value,
+    desc: document.getElementById('prodDesc').value,
+  };
+  if(productId) DB.products = DB.products.map(p=>p.id===productId?prod:p);
+  else DB.products.push(prod);
+  persistProducts();
+  closeModal();
+  render();
+}
+function deleteProduct(id){
+  if(!confirm('Xóa sản phẩm này?')) return;
+  DB.products = DB.products.filter(p=>p.id!==id);
+  persistProducts();
+  render();
+}
+
+/* ================= RECIPES ================= */
+function renderRecipesTab(){
+  return `
+    ${sectionHeader('Công thức', 'Lưu công thức pha chế cho từng loại sữa hạt',
+      `<button class="btn btn-solid" onclick="openRecipeModal()">＋ Thêm công thức</button>`)}
+    ${DB.recipes.length===0 ? `<div class="empty-state"><div class="empty-icon">📖</div><div class="empty-title">Chưa có công thức nào</div><div class="empty-sub">Lưu lại công thức để pha chế nhất quán mỗi lần.</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openRecipeModal()">＋ Thêm công thức</button></div></div>` :
+      DB.recipes.map(r=>{
+        const product = DB.products.find(p=>p.id===r.productId);
+        return `<div class="recipe-card">
+          <div class="recipe-head" onclick="toggleRecipe('${r.id}')">
+            <div><div style="font-weight:700;font-size:14.5px;">${escapeHtml(r.name)}</div>${product?`<div style="font-size:12px;color:var(--gold);font-weight:600;">Áp dụng cho: ${escapeHtml(product.name)}</div>`:''}</div>
+            <span class="chevron" id="chev-${r.id}">▾</span>
+          </div>
+          <div class="recipe-body" id="body-${r.id}">
+            <div class="recipe-cols">
+              <div class="recipe-col">
+                <div class="recipe-col-title">Nguyên liệu ${r.yield?`(cho ${escapeHtml(r.yield)})`:''}</div>
+                <ul>${r.ingredients.map(ing=>`<li>${escapeHtml(ing.name)} — ${escapeHtml(ing.amount)}</li>`).join('')}</ul>
+              </div>
+              <div class="recipe-col">
+                <div class="recipe-col-title">Các bước thực hiện</div>
+                <ol>${r.steps.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ol>
+              </div>
+            </div>
+            ${r.notes?`<div class="recipe-note">${escapeHtml(r.notes)}</div>`:''}
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn btn-ghost" onclick="openRecipeModal('${r.id}')">✎ Sửa</button>
+              <button class="btn btn-danger" onclick="deleteRecipe('${r.id}')">🗑 Xóa</button>
+            </div>
+          </div>
+        </div>`;
+      }).join('')
+    }
+  `;
+}
+function toggleRecipe(id){
+  document.getElementById('body-'+id).classList.toggle('open');
+  document.getElementById('chev-'+id).classList.toggle('open');
+}
+function recipeIngRowHtml(name,amount){
+  return `<div class="item-row">
+    <input class="input" placeholder="Tên nguyên liệu" value="${escapeHtml(name||'')}" style="flex:2;">
+    <input class="input" placeholder="Số lượng" value="${escapeHtml(amount||'')}" style="flex:1;width:auto;">
+    <button type="button" class="row-remove" onclick="this.closest('.item-row').remove()">✕</button>
+  </div>`;
+}
+function recipeStepRowHtml(idx, text){
+  return `<div class="item-row"><span style="font-size:12.5px;color:var(--ink-faint);width:16px;">${idx}.</span>
+    <input class="input" value="${escapeHtml(text||'')}" style="flex:1;">
+    <button type="button" class="row-remove" onclick="this.closest('.item-row').remove();renumberSteps()">✕</button>
+  </div>`;
+}
+function renumberSteps(){
+  document.querySelectorAll('#recipeStepsContainer .item-row').forEach((row,i)=>{
+    row.querySelector('span').textContent = (i+1)+'.';
+  });
+}
+function addIngredientRow(){ document.getElementById('recipeIngContainer').insertAdjacentHTML('beforeend', recipeIngRowHtml()); }
+function addStepRow(){
+  const count = document.querySelectorAll('#recipeStepsContainer .item-row').length;
+  document.getElementById('recipeStepsContainer').insertAdjacentHTML('beforeend', recipeStepRowHtml(count+1,''));
+}
+function openRecipeModal(recipeId){
+  const r = recipeId ? DB.recipes.find(x=>x.id===recipeId) : null;
+  const ingredients = r?.ingredients?.length ? r.ingredients : [{name:'',amount:''}];
+  const steps = r?.steps?.length ? r.steps : [''];
+  const body = `
+    <form onsubmit="submitRecipe(event,'${recipeId||''}')">
+      <div class="field-row">
+        <div class="field"><span class="field-label">Tên công thức</span><input class="input" id="recName" value="${escapeHtml(r?.name||'')}"></div>
+        <div class="field"><span class="field-label">Áp dụng cho sản phẩm</span>
+          <select class="input" id="recProduct"><option value="">— Không gắn sản phẩm —</option>${DB.products.map(p=>`<option value="${p.id}" ${r?.productId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select>
+        </div>
+      </div>
+      <div class="field"><span class="field-label">Định lượng thành phẩm</span><input class="input" id="recYield" value="${escapeHtml(r?.yield||'')}" placeholder="Ví dụ: 5 chai 500ml"></div>
+      <div class="field">
+        <span class="field-label">Nguyên liệu</span>
+        <div id="recipeIngContainer">${ingredients.map(i=>recipeIngRowHtml(i.name,i.amount)).join('')}</div>
+        <button type="button" class="add-row-btn" onclick="addIngredientRow()">＋ Thêm nguyên liệu</button>
+      </div>
+      <div class="field">
+        <span class="field-label">Các bước thực hiện</span>
+        <div id="recipeStepsContainer">${steps.map((s,i)=>recipeStepRowHtml(i+1,s)).join('')}</div>
+        <button type="button" class="add-row-btn" onclick="addStepRow()">＋ Thêm bước</button>
+      </div>
+      <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="recNotes" placeholder="Mẹo pha chế, thời gian bảo quản...">${escapeHtml(r?.notes||'')}</textarea></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">Lưu công thức</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal(r?'Sửa công thức':'Thêm công thức', body, true);
+}
+function submitRecipe(e, recipeId){
+  e.preventDefault();
+  const name = document.getElementById('recName').value.trim();
+  if(!name){ alert('Vui lòng nhập tên công thức.'); return; }
+  const ingredients = Array.from(document.querySelectorAll('#recipeIngContainer .item-row')).map(row=>{
+    const inputs = row.querySelectorAll('input');
+    return { name: inputs[0].value.trim(), amount: inputs[1].value.trim() };
+  }).filter(i=>i.name);
+  const steps = Array.from(document.querySelectorAll('#recipeStepsContainer .item-row')).map(row=>row.querySelector('input').value.trim()).filter(s=>s);
+  const recipe = {
+    id: recipeId || uid(), name,
+    productId: document.getElementById('recProduct').value,
+    yield: document.getElementById('recYield').value,
+    ingredients, steps,
+    notes: document.getElementById('recNotes').value,
+  };
+  if(recipeId) DB.recipes = DB.recipes.map(r=>r.id===recipeId?recipe:r);
+  else DB.recipes.push(recipe);
+  persistRecipes();
+  closeModal();
+  render();
+}
+function deleteRecipe(id){
+  if(!confirm('Xóa công thức này?')) return;
+  DB.recipes = DB.recipes.filter(r=>r.id!==id);
+  persistRecipes();
+  render();
+}
+
+/* ================= BRANCHES (CƠ SỞ) ================= */
+function renderBranchesTab(){
+  return `
+    ${sectionHeader('Cơ sở', 'Phân loại đơn hàng theo từng cơ sở / chi nhánh khác nhau',
+      `<button class="btn btn-solid" onclick="openBranchModal()">＋ Thêm cơ sở</button>`)}
+    ${DB.branches.length===0 ? `<div class="empty-state"><div class="empty-icon">🏬</div><div class="empty-title">Chưa có cơ sở nào</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openBranchModal()">＋ Thêm cơ sở</button></div></div>` :
+      `<div class="grid-cards">${DB.branches.map(b=>{
+        const count = DB.orders.filter(o=>o.branchId===b.id).length;
+        return `<div class="card card-nohover">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+            <div style="font-weight:700;font-size:15px;">${escapeHtml(b.name)}</div>
+            <div style="display:flex;gap:2px;">
+              <button class="icon-btn" onclick="openBranchModal('${b.id}')">✎</button>
+              <button class="icon-btn" onclick="deleteBranch('${b.id}')">🗑</button>
+            </div>
+          </div>
+          ${b.address?`<div class="cust-line">📍 ${escapeHtml(b.address)}</div>`:''}
+          <div style="font-size:12.5px;color:var(--ink-faint);margin-top:10px;">${count} đơn hàng</div>
+        </div>`;
+      }).join('')}</div>`
+    }
+  `;
+}
+function openBranchModal(branchId){
+  const b = branchId ? DB.branches.find(x=>x.id===branchId) : null;
+  const body = `
+    <form onsubmit="submitBranch(event,'${branchId||''}')">
+      <div class="field"><span class="field-label">Tên cơ sở</span><input class="input" id="branchName" value="${escapeHtml(b?.name||'')}" placeholder="Cơ sở Quận 1"></div>
+      <div class="field"><span class="field-label">Địa chỉ</span><input class="input" id="branchAddress" value="${escapeHtml(b?.address||'')}"></div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-solid">Lưu</button>
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+      </div>
+    </form>
+  `;
+  openModal(b?'Sửa cơ sở':'Thêm cơ sở', body);
+}
+function submitBranch(e, branchId){
+  e.preventDefault();
+  const name = document.getElementById('branchName').value.trim();
+  if(!name){ alert('Vui lòng nhập tên cơ sở.'); return; }
+  const branch = { id: branchId || uid(), name, address: document.getElementById('branchAddress').value };
+  if(branchId) DB.branches = DB.branches.map(x=>x.id===branchId?branch:x);
+  else DB.branches.push(branch);
+  persistBranches();
+  closeModal();
+  render();
+}
+function deleteBranch(id){
+  if(DB.branches.length<=1){ alert('Cần giữ lại ít nhất 1 cơ sở.'); return; }
+  if(!confirm('Xóa cơ sở này? (Đơn hàng cũ vẫn được giữ lại)')) return;
+  DB.branches = DB.branches.filter(b=>b.id!==id);
+  persistBranches();
+  render();
+}
+
+/* ================= SETTINGS / SUPABASE SYNC ================= */
+function renderSettingsTab(){
+  return `
+    ${sectionHeader('Đồng bộ dữ liệu', 'Kết nối Supabase để đồng bộ dữ liệu giữa nhiều thiết bị')}
+    <div class="panel settings-block">
+      <div class="panel-title">Trạng thái kết nối</div>
+      ${supaReady
+        ? `<span class="conn-badge conn-ok">🟢 Đã kết nối Supabase</span><p style="font-size:13px;color:var(--ink-soft);margin-top:10px;">Dữ liệu đang được lưu trên Supabase và tự động đồng bộ giữa các thiết bị đăng nhập cùng một dự án.</p>`
+        : `<span class="conn-badge conn-off">⚪ Chưa kết nối Supabase</span><p style="font-size:13px;color:var(--ink-soft);margin-top:10px;">Ứng dụng đang lưu dữ liệu cục bộ (chỉ trên thiết bị/phiên hiện tại). Làm theo các bước bên dưới để bật đồng bộ nhiều thiết bị qua Supabase.</p>`
+      }
+    </div>
+    <div class="panel settings-block">
+      <h4>Bước 1 — Tạo dự án Supabase</h4>
+      <p style="font-size:13px;color:var(--ink-soft);">Tạo một dự án miễn phí tại supabase.com, sau đó vào mục SQL Editor và chạy đoạn SQL sau để tạo bảng lưu dữ liệu:</p>
+      <div class="code-box">create table if not exists nuts_kv (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz default now()
+);
+
+alter table nuts_kv enable row level security;
+
+create policy "Cho phép đọc/ghi bằng anon key"
+  on nuts_kv for all
+  using (true) with check (true);
+
+alter publication supabase_realtime add table nuts_kv;</div>
+      <p class="field-hint">Lưu ý: chính sách trên cho phép bất kỳ ai có anon key đọc/ghi dữ liệu — phù hợp cho một cửa hàng nhỏ tự quản lý, không nên dùng cho dữ liệu nhạy cảm cần bảo mật cao.</p>
+    </div>
+    <div class="panel settings-block">
+      <h4>Bước 2 — Điền khóa kết nối vào file</h4>
+      <p style="font-size:13px;color:var(--ink-soft);">Mở file HTML này bằng trình soạn thảo văn bản, tìm 2 dòng gần đầu thẻ &lt;script&gt;:</p>
+      <div class="code-box">const SUPABASE_URL = '';
+const SUPABASE_ANON_KEY = '';</div>
+      <p style="font-size:13px;color:var(--ink-soft);">Điền URL dự án và anon public key (lấy trong Project Settings → API của Supabase) vào giữa hai dấu nháy đơn, lưu file lại và tải lên nơi lưu trữ (Google Drive, hosting tĩnh...). Mọi thiết bị mở cùng file này (đã điền khóa) sẽ tự động thấy cùng một dữ liệu.</p>
+    </div>
+    <div class="panel settings-block">
+      <h4>Cơ sở đang quản lý</h4>
+      <p style="font-size:13px;color:var(--ink-soft);">Mỗi đơn hàng có thể gắn với 1 cơ sở để tách biệt số liệu giữa các chi nhánh. Quản lý cơ sở tại mục "Cơ sở" trên thanh điều hướng.</p>
+    </div>
+  `;
+}
+
+/* ================= START ================= */
+init();
+</script>
+</body>
+</html>
