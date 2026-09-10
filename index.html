@@ -445,6 +445,19 @@ const MENU_SAMPLE = [
 function normalizedName(value){
   return String(value||'').normalize('NFC').toLowerCase().replace(/\s*[–—-]\s*/g,'-').replace(/\s+/g,' ').trim();
 }
+function productVolumeMl(product){
+  const value=Number(product?.volumeMl);
+  return value>0 ? value : 330;
+}
+function migrateProductVolumes(){
+  let changed=false;
+  DB.products.forEach(product=>{
+    if(Number(product.volumeMl)>0) return;
+    product.volumeMl=330;
+    changed=true;
+  });
+  if(changed) persistProducts();
+}
 function seedMenuSampleData(){
   let productsChanged=false, recipesChanged=false, materialsChanged=false;
   const materialNames=[...new Set(MENU_SAMPLE.flatMap(row=>row.i.map(x=>x[0])).concat(['Chà là','Muối']))];
@@ -456,7 +469,7 @@ function seedMenuSampleData(){
   MENU_SAMPLE.forEach(row=>{
     let product=DB.products.find(p=>normalizedName(p.name)===normalizedName(row.n));
     if(!product){
-      product={id:uid(),name:row.n,category:'Sữa hạt',price:row.price,unit:'chai 360ml',desc:''};
+      product={id:uid(),name:row.n,category:'Sữa hạt',price:row.price,unit:'ly',volumeMl:330,desc:''};
       DB.products.push(product); productsChanged=true;
     }
     if(DB.recipes.some(r=>normalizedName(r.name)===normalizedName(row.n))) return;
@@ -561,6 +574,7 @@ async function init(){
     ]);
     await saveKey('nuts:menu_39_sample_seeded', true);
   }
+  migrateProductVolumes();
   LOADED = true;
   saveKey('nuts:products', DB.products);
   saveKey('nuts:branches', DB.branches);
@@ -1010,6 +1024,54 @@ function setDashRange(mode){
 }
 
 /* ================= ORDERS ================= */
+function preparationRows(){
+  const range=resolveRange(ordersFilter);
+  const orders=DB.orders
+    .filter(o=>o.deliveryDate>=range.from && o.deliveryDate<=range.to)
+    .filter(o=>ordersFilter.branch==='all' || o.branchId===ordersFilter.branch)
+    .filter(o=>ordersFilter.status==='all' || o.status===ordersFilter.status)
+    .filter(o=>o.status!=='da_huy' && o.status!=='hoan_thanh');
+  const grouped=new Map();
+  orders.forEach(order=>(order.items||[]).forEach(item=>{
+    const product=DB.products.find(p=>p.id===item.productId);
+    const volumeMl=Number(item.volumeMl)||productVolumeMl(product);
+    const key=`${item.productId||normalizedName(item.name)}|${volumeMl}`;
+    const current=grouped.get(key)||{name:item.name||product?.name||'Sản phẩm',qty:0,ml:0,volumeMl};
+    current.qty+=Number(item.qty)||0;
+    current.ml+=(Number(item.qty)||0)*volumeMl;
+    grouped.set(key,current);
+  }));
+  return [...grouped.values()].sort((a,b)=>b.qty-a.qty || a.name.localeCompare(b.name,'vi'));
+}
+function renderPreparationSummary(){
+  const rows=preparationRows();
+  const totalQty=rows.reduce((sum,row)=>sum+row.qty,0);
+  const totalMl=rows.reduce((sum,row)=>sum+row.ml,0);
+  return `<div class="panel" style="margin-bottom:18px;">
+    <div class="section-header" style="margin-bottom:12px;">
+      <div>
+        <div class="panel-title" style="margin:0;">🥛 Tổng hợp cần chuẩn bị</div>
+        <div class="field-hint">Theo khoảng ngày, cơ sở và trạng thái đang chọn · Không tính đơn đã hoàn thành hoặc đã hủy</div>
+      </div>
+      <div style="text-align:right;font-size:12.5px;color:var(--ink-soft);"><strong style="color:var(--green);font-size:16px;">${totalQty.toLocaleString('vi-VN')} ly</strong><br>${totalMl.toLocaleString('vi-VN')} ml</div>
+    </div>
+    ${rows.length===0
+      ? `<div style="font-size:13px;color:var(--ink-faint);padding:8px 0;">Không có sản phẩm nào đang chờ chuẩn bị trong khoảng đã chọn.</div>`
+      : `<div style="overflow-x:auto;"><table class="cost-table">
+          <thead><tr><th>Sản phẩm</th><th class="cost-right">Số lượng</th><th class="cost-right">Dung tích/ly</th><th class="cost-right">Tổng cần làm</th></tr></thead>
+          <tbody>${rows.map(row=>`<tr>
+            <td><strong>${escapeHtml(row.name)}</strong></td>
+            <td class="cost-right"><strong>${row.qty.toLocaleString('vi-VN')} ly</strong></td>
+            <td class="cost-right">${row.volumeMl.toLocaleString('vi-VN')} ml</td>
+            <td class="cost-right"><strong style="color:var(--green);">${row.ml.toLocaleString('vi-VN')} ml</strong></td>
+          </tr>`).join('')}</tbody>
+        </table></div>`}
+  </div>`;
+}
+function refreshPreparationSummary(){
+  const container=document.getElementById('preparationSummaryContainer');
+  if(container) container.innerHTML=renderPreparationSummary();
+}
 function renderOrdersTab(){
   const range = resolveRange(ordersFilter);
   const rangeOrders = ordersInRange(range, ordersFilter.branch==='all'?null:ordersFilter.branch);
@@ -1037,6 +1099,7 @@ function renderOrdersTab(){
       </select>` : ''}
       <div class="search-wrap"><span class="search-icon">🔍</span><input class="input" id="fltSearch" placeholder="Tìm theo tên / SĐT khách..." value="${escapeHtml(ordersFilter.search)}" oninput="ordersFilter.search=this.value;refreshOrdersList()"></div>
     </div>
+    <div id="preparationSummaryContainer">${renderPreparationSummary()}</div>
     <div id="ordersListContainer"></div>
   `;
 }
@@ -1046,6 +1109,7 @@ function setOrdersRange(mode){
   renderMain();
 }
 function refreshOrdersList(){
+  refreshPreparationSummary();
   const container = document.getElementById('ordersListContainer');
   if(!container) return;
   const range = resolveRange(ordersFilter);
@@ -1067,7 +1131,9 @@ function refreshOrdersList(){
     return `<div class="order-row" style="border-left:4px solid ${st.color};">
       <div style="min-width:180px;flex:1 1 180px;">
         <div class="order-name">${escapeHtml(o.customerName)} ${cust&&cust.vip?'⭐':''}</div>
-        <div class="order-sub">📍 ${escapeHtml(o.address||'—')}</div>
+        ${o.orderType==='tai_cho'
+          ? `<div class="order-sub" style="color:var(--gold);font-weight:700;">🪑 Bán tại chỗ</div>`
+          : `<div class="order-sub">📍 ${escapeHtml(o.address||'—')}</div>`}
         ${o.phone?`<div class="order-sub">📞 ${escapeHtml(o.phone)}</div>`:''}
         ${o.branchId ? `<div style="margin-top:6px;"><span class="branch-pill">🏬 ${escapeHtml(branchName(o.branchId))}</span></div>` : ''}
       </div>
@@ -1162,6 +1228,20 @@ function toggleOrderCustomerMode(mode){
   document.getElementById('newCustomerBlock').style.display = mode==='new' ? 'block' : 'none';
   refreshOrderSubOptions(mode==='existing' ? document.getElementById('orderCustomerSelect').value : '');
 }
+function toggleOrderType(type){
+  const isOnSite=type==='tai_cho';
+  const customerSection=document.getElementById('orderCustomerSection');
+  const phoneField=document.getElementById('orderPhoneField');
+  const addressField=document.getElementById('orderAddressField');
+  if(customerSection) customerSection.style.display=isOnSite?'none':'block';
+  if(phoneField) phoneField.style.display=isOnSite?'none':'block';
+  if(addressField) addressField.style.display=isOnSite?'none':'block';
+  if(isOnSite){
+    const subSelect=document.getElementById('orderSubSelect');
+    if(subSelect) subSelect.value='';
+  }
+  recomputeOrderTotal();
+}
 function fillCustomerContact(customerId){
   const c = DB.customers.find(x=>x.id===customerId);
   if(c){
@@ -1209,9 +1289,22 @@ function openOrderModal(orderId){
   const body = `
     <form id="orderForm" onsubmit="submitOrder(event,'${orderId||''}')">
       ${order ? `
-        <div class="field"><span class="field-label">Khách hàng</span><input class="input" value="${escapeHtml(order.customerName)}" disabled></div>
-        <input type="hidden" id="orderExistingCustomerId" value="${order.customerId}">
+        <div class="field"><span class="field-label">Hình thức bán</span><input class="input" value="${order.orderType==='tai_cho'?'Bán tại chỗ':'Order / giao hàng'}" disabled></div>
       ` : `
+        <div class="field">
+          <span class="field-label">Hình thức bán</span>
+          <div class="mode-toggle">
+            <label><input type="radio" name="orderType" value="order" checked onchange="toggleOrderType('order')"><span>🛵 Order / giao hàng</span></label>
+            <label><input type="radio" name="orderType" value="tai_cho" onchange="toggleOrderType('tai_cho')"><span>🪑 Bán tại chỗ</span></label>
+          </div>
+          <span class="field-hint">Bán tại chỗ không cần nhập thông tin khách hàng.</span>
+        </div>
+      `}
+      ${order ? `
+        <div class="field"><span class="field-label">Khách hàng</span><input class="input" value="${escapeHtml(order.customerName)}" disabled></div>
+        <input type="hidden" id="orderExistingCustomerId" value="${order.customerId||''}">
+      ` : `
+        <div id="orderCustomerSection">
         <div class="mode-toggle">
           <label><input type="radio" name="customerMode" value="existing" ${hasCustomers?'checked':''} onchange="toggleOrderCustomerMode('existing')"><span>Khách có sẵn</span></label>
           <label><input type="radio" name="customerMode" value="new" ${hasCustomers?'':'checked'} onchange="toggleOrderCustomerMode('new')"><span>Khách mới</span></label>
@@ -1228,15 +1321,16 @@ function openOrderModal(orderId){
         <div id="newCustomerBlock" style="display:${hasCustomers?'none':'block'};">
           <div class="field"><span class="field-label">Tên khách hàng</span><input class="input" id="orderNewName" placeholder="Nguyễn Văn A"></div>
         </div>
+        </div>
       `}
       <div class="field-row">
-        <div class="field"><span class="field-label">Số điện thoại</span><input class="input" id="orderPhone" value="${escapeHtml(order?.phone||'')}" placeholder="09xxxxxxxx"></div>
+        <div class="field" id="orderPhoneField"><span class="field-label">Số điện thoại</span><input class="input" id="orderPhone" value="${escapeHtml(order?.phone||'')}" placeholder="09xxxxxxxx"></div>
         <div class="field"><span class="field-label">Trạng thái giao</span>
           <select class="input" id="orderStatus">${STATUS.map(s=>`<option value="${s.key}" ${(order?.status||'cho_xac_nhan')===s.key?'selected':''}>${s.label}</option>`).join('')}</select>
         </div>
       </div>
       <div class="field-row">
-        <div class="field"><span class="field-label">Địa chỉ giao hàng</span><input class="input" id="orderAddress" value="${escapeHtml(order?.address||'')}" placeholder="Số nhà, đường, phường/xã, quận/huyện..."></div>
+        <div class="field" id="orderAddressField"><span class="field-label">Địa chỉ giao hàng</span><input class="input" id="orderAddress" value="${escapeHtml(order?.address||'')}" placeholder="Số nhà, đường, phường/xã, quận/huyện..."></div>
         <div class="field"><span class="field-label">Cơ sở</span>
           <select class="input" id="orderBranch">${DB.branches.map(b=>`<option value="${b.id}" ${(order?.branchId||DB.branches[0]?.id)===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}</select>
         </div>
@@ -1270,6 +1364,15 @@ function openQuickOrderModal(){
   const hasCustomers = DB.customers.length>0;
   const body = `
     <form id="quickOrderForm" onsubmit="submitOrder(event,'')">
+      <div class="field">
+        <span class="field-label">Hình thức bán</span>
+        <div class="mode-toggle">
+          <label><input type="radio" name="orderType" value="order" checked onchange="toggleOrderType('order')"><span>🛵 Order / giao hàng</span></label>
+          <label><input type="radio" name="orderType" value="tai_cho" onchange="toggleOrderType('tai_cho')"><span>🪑 Bán tại chỗ</span></label>
+        </div>
+        <span class="field-hint">Bán tại chỗ không cần nhập thông tin khách hàng.</span>
+      </div>
+      <div id="orderCustomerSection">
       <div class="mode-toggle">
         <label><input type="radio" name="customerMode" value="existing" ${hasCustomers?'checked':''} onchange="toggleOrderCustomerMode('existing')"><span>Khách có sẵn</span></label>
         <label><input type="radio" name="customerMode" value="new" ${hasCustomers?'':'checked'} onchange="toggleOrderCustomerMode('new')"><span>Khách mới</span></label>
@@ -1285,6 +1388,7 @@ function openQuickOrderModal(){
       </div>
       <div id="newCustomerBlock" style="display:${hasCustomers?'none':'block'};">
         <div class="field"><span class="field-label">Tên khách hàng</span><input class="input" id="orderNewName" placeholder="Nguyễn Văn A"></div>
+      </div>
       </div>
       <input type="hidden" id="orderPhone" value="">
       <input type="hidden" id="orderAddress" value="">
@@ -1316,11 +1420,15 @@ function openQuickOrderModal(){
 function submitOrder(e, orderId){
   e.preventDefault();
   const order = orderId ? DB.orders.find(o=>o.id===orderId) : null;
+  const orderType = order ? (order.orderType||'order') : (document.querySelector('input[name=orderType]:checked')?.value||'order');
   let customerId, customerName;
 
   if(order){
-    customerId = document.getElementById('orderExistingCustomerId').value;
+    customerId = document.getElementById('orderExistingCustomerId').value||'';
     customerName = order.customerName;
+  } else if(orderType==='tai_cho'){
+    customerId = '';
+    customerName = 'Khách tại chỗ';
   } else {
     const mode = document.querySelector('input[name=customerMode]:checked')?.value || 'new';
     if(mode==='new'){
@@ -1342,13 +1450,13 @@ function submitOrder(e, orderId){
     const pid = r.querySelector('.item-product').value;
     const qty = Number(r.querySelector('.item-qty').value)||1;
     const p = DB.products.find(x=>x.id===pid);
-    if(p) items.push({ productId:pid, name:p.name, price:p.price, qty });
+    if(p) items.push({ productId:pid, name:p.name, price:p.price, volumeMl:productVolumeMl(p), qty });
   });
   if(items.length===0){ alert('Vui lòng thêm ít nhất 1 sản phẩm.'); return; }
   const totalQty = items.reduce((s,it)=>s+it.qty,0);
 
   const subSelectEl = document.getElementById('orderSubSelect');
-  const chosenSubId = (!order && subSelectEl) ? subSelectEl.value : '';
+  const chosenSubId = (!order && orderType!=='tai_cho' && subSelectEl) ? subSelectEl.value : '';
 
   // Chặn hẳn việc trừ vào gói nếu gói đã hết (0) hoặc không đủ số lượng còn lại cho đơn này
   if(chosenSubId){
@@ -1381,9 +1489,9 @@ function submitOrder(e, orderId){
 
   const newOrder = {
     id: orderId || uid(),
-    customerId, customerName,
-    phone: document.getElementById('orderPhone').value,
-    address: document.getElementById('orderAddress').value,
+    orderType, customerId, customerName,
+    phone: orderType==='tai_cho' ? '' : (document.getElementById('orderPhone')?.value||''),
+    address: orderType==='tai_cho' ? '' : (document.getElementById('orderAddress')?.value||''),
     branchId: document.getElementById('orderBranch').value,
     items, total,
     subscriberId, subRestored: false,
@@ -1804,7 +1912,7 @@ function renderProductsTab(){
           <div style="font-size:13px;color:var(--ink-soft);margin:8px 0;">${escapeHtml(p.desc||'')}</div>
           <div style="display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--line-soft);">
             <span style="font-size:18px;font-weight:800;color:var(--green);">${vnd(p.price)}</span>
-            <span style="font-size:12px;color:var(--ink-faint);">${escapeHtml(p.unit)}</span>
+            <span style="font-size:12px;color:var(--ink-faint);">${escapeHtml(p.unit)} · ${productVolumeMl(p).toLocaleString('vi-VN')}ml</span>
           </div>
         </div>
       `).join('')}</div>`
@@ -1818,8 +1926,9 @@ function openProductModal(productId){
       <div class="field"><span class="field-label">Tên sản phẩm</span><input class="input" id="prodName" value="${escapeHtml(p?.name||'')}" placeholder="Sữa hạnh nhân"></div>
       <div class="field-row">
         <div class="field"><span class="field-label">Danh mục</span><input class="input" id="prodCategory" value="${escapeHtml(p?.category||'Sữa hạt')}"></div>
-        <div class="field"><span class="field-label">Đơn vị</span><input class="input" id="prodUnit" value="${escapeHtml(p?.unit||'chai 500ml')}"></div>
+        <div class="field"><span class="field-label">Đơn vị</span><input class="input" id="prodUnit" value="${escapeHtml(p?.unit||'ly')}"></div>
       </div>
+      <div class="field"><span class="field-label">Dung tích mỗi ly (ml)</span><input class="input" type="number" min="1" id="prodVolumeMl" value="${productVolumeMl(p)}" placeholder="330"><span class="field-hint">Dùng để quy đổi tổng số ly cần chuẩn bị sang ml.</span></div>
       <div class="field"><span class="field-label">Giá bán (đ)</span><input class="input" type="number" id="prodPrice" value="${p?.price||''}"></div>
       <div class="field"><span class="field-label">Mô tả</span><textarea class="input" id="prodDesc">${escapeHtml(p?.desc||'')}</textarea></div>
       <div class="form-actions">
@@ -1839,6 +1948,7 @@ function submitProduct(e, productId){
     category: document.getElementById('prodCategory').value,
     price: Number(document.getElementById('prodPrice').value)||0,
     unit: document.getElementById('prodUnit').value,
+    volumeMl: Number(document.getElementById('prodVolumeMl').value)||330,
     desc: document.getElementById('prodDesc').value,
   };
   if(productId) DB.products = DB.products.map(p=>p.id===productId?prod:p);
