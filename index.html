@@ -258,6 +258,34 @@
 
   .loading{min-height:60vh;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);}
 
+
+  .profit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px;}
+  .profit-box{background:#fff;border:1px solid var(--line-soft);border-radius:12px;padding:15px 16px;}
+  .profit-box-label{font-size:12px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .profit-box-value{font-size:21px;font-weight:800;}
+  .profit-box-note{font-size:11px;color:var(--ink-faint);margin-top:4px;}
+  .profit-positive{color:#2E6B3E;}
+  .profit-negative{color:var(--red);}
+  .cost-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .cost-table th,.cost-table td{padding:8px 6px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:middle;}
+  .cost-table th{color:var(--ink-soft);font-weight:700;font-size:12px;}
+  .cost-right{text-align:right!important;}
+  .material-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;background:var(--panel-alt);color:var(--ink-soft);font-size:11.5px;font-weight:700;}
+  .cost-preview{font-size:11.5px;color:var(--green);font-weight:700;margin-top:4px;}
+  .expense-row{background:#fff;border:1px solid var(--line-soft);border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;}
+  .expense-main{flex:1;min-width:220px;}
+  .expense-name{font-weight:700;font-size:13.5px;}
+  .expense-meta{font-size:11.5px;color:var(--ink-faint);margin-top:3px;}
+  .expense-amount{font-weight:800;font-size:15px;color:var(--red);white-space:nowrap;}
+  .mini-actions{display:flex;align-items:center;gap:3px;}
+  .recipe-ing-head{display:grid;grid-template-columns:1.35fr .7fr .8fr 28px;gap:7px;margin-bottom:6px;color:var(--ink-faint);font-size:11px;font-weight:600;}
+  .recipe-ing-grid{display:grid;grid-template-columns:1.35fr .7fr .8fr 28px;gap:7px;align-items:center;}
+  .recipe-ing-grid .input{min-width:0;}
+  .recipe-cost-summary{margin-top:10px;background:var(--panel-alt);border-radius:9px;padding:10px 12px;font-size:12.5px;}
+  @media (max-width: 900px){
+    .profit-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+
   @media (max-width: 860px){
     .sidebar{display:none;}
     .mobilenav{display:flex;}
@@ -296,6 +324,7 @@ const NAV = [
   {key:'branches', label:'Cơ sở', icon:'🏬'},
   {key:'products', label:'Sản phẩm', icon:'📦'},
   {key:'recipes', label:'Công thức', icon:'📖'},
+  {key:'expenses', label:'Chi phí', icon:'💸'},
   {key:'settings', label:'Đồng bộ dữ liệu', icon:'⚙️'},
 ];
 /* ================= SUPABASE SYNC ================= */
@@ -316,7 +345,7 @@ function initSupabase(){
 }
 function setupRealtimeSync(){
   if(!supaClient) return;
-  const map = {'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:branches':'branches'};
+  const map = {'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:subscription_payments':'subscriptionPayments','nuts:branches':'branches','nuts:raw_materials':'rawMaterials','nuts:expenses':'expenses'};
   supaClient.channel('nuts_kv_live')
     .on('postgres_changes', {event:'*', schema:'public', table:'nuts_kv'}, async (payload)=>{
       const key = payload.new?.key || payload.old?.key;
@@ -329,7 +358,8 @@ function setupRealtimeSync(){
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 const vnd = (n) => (Number(n)||0).toLocaleString('vi-VN') + 'đ';
-const todayISO = () => new Date().toISOString().slice(0,10);
+const localISODate = (date) => new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,10);
+const todayISO = () => localISODate(new Date());
 const statusOf = (k) => STATUS.find(s=>s.key===k) || STATUS[0];
 const subStatusOf = (k) => SUB_STATUS.find(s=>s.key===k) || SUB_STATUS[0];
 const escapeHtml = (str) => String(str??'').replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
@@ -365,17 +395,94 @@ function seedBranches(){
   return [ { id:uid(), name:'Cơ sở chính', address:'' } ];
 }
 function seedProducts(){
-  return [
-    { id:uid(), name:'Sữa hạnh nhân', category:'Sữa hạt', price:35000, unit:'chai 500ml', desc:'Hạnh nhân nguyên chất, không đường, không chất bảo quản.' },
-    { id:uid(), name:'Sữa óc chó', category:'Sữa hạt', price:42000, unit:'chai 500ml', desc:'Giàu Omega-3, tốt cho trí não.' },
-    { id:uid(), name:'Sữa mè đen đậu đen', category:'Sữa hạt', price:30000, unit:'chai 500ml', desc:'Bổ thận, đẹp tóc, thanh mát.' },
-    { id:uid(), name:'Sữa đậu nành nguyên chất', category:'Sữa hạt', price:22000, unit:'chai 500ml', desc:'Vị truyền thống, thơm béo tự nhiên.' },
-    { id:uid(), name:'Sữa hạt sen', category:'Sữa hạt', price:32000, unit:'chai 500ml', desc:'Thanh nhiệt, dễ ngủ, hợp trẻ nhỏ.' },
-  ];
+  return [];
+}
+
+/* Dữ liệu mẫu được nhập từ ảnh "Bảng công thức 39 món sữa hạt tươi OYEN".
+   Ảnh không có dòng số 11, nên chỉ tạo các dòng nhìn thấy và không tự suy đoán.
+   Giá mua/kg của từng nguyên liệu không có trong ảnh: để 0 để người dùng tự điền.
+   Giá vốn/chai có sẵn trong ảnh được lưu ở manualUnitCost để COGS vẫn chính xác. */
+const MENU_SAMPLE = [
+  {no:1,n:'Macca – Điều',i:[['Macca',45],['Điều',55]],d:15,w:850,soak:'2–4',cook:'10–12',temp:'88–92°C',raw:19600,cost:7700,price:25000},
+  {no:2,n:'Hạnh nhân – Óc chó',i:[['Hạnh nhân',55],['Óc chó',45]],d:15,w:850,soak:'4–6',cook:'10–12',temp:'88–92°C',raw:17100,cost:6600,price:22000},
+  {no:3,n:'Mè đen – Điều',i:[['Mè đen',30],['Điều',65]],d:18,w:850,soak:'4–6',cook:'10–12',temp:'88–92°C',raw:14400,cost:5700,price:22000},
+  {no:4,n:'Hạt sen – Điều',i:[['Hạt sen',50],['Điều',55]],d:18,w:850,soak:'6–8',cook:'15–20',temp:'90–95°C',raw:15800,cost:6200,price:22000},
+  {no:5,n:'Đậu đen – Óc chó',i:[['Đậu đen',60],['Óc chó',40]],d:20,w:780,soak:'8–10',cook:'35–20',temp:'98–100°C',raw:11300,cost:4600,price:22000},
+  {no:6,n:'Cacao – Điều',i:[['Cacao',10],['Điều',75]],d:18,w:850,soak:'4–6',cook:'15–45',temp:'88–92°C',raw:13600,cost:5600,price:22000},
+  {no:7,n:'Bắp ngọt – Điều',i:[['Ngô',180],['Điều',45]],d:12,w:760,soak:'4–6',cook:'12–20',temp:'90–95°C',raw:11500,cost:4900,price:22000},
+  {no:8,n:'Bí đỏ – Điều – Hạnh nhân',i:[['Bí đỏ',150],['Điều',40],['Hạnh nhân',30]],d:12,w:760,soak:'6–8',cook:'12–18',temp:'90–95°C',raw:13000,cost:5900,price:22000},
+  {no:9,n:'Hạt sen – Hạnh nhân – Điều',i:[['Hạt sen',45],['Hạnh nhân',35],['Điều',35]],d:15,w:850,soak:'6–8',cook:'15–20',temp:'90–95°C',raw:11900,cost:5600,price:25000},
+  {no:10,n:'Khoai tím – Điều – Hạnh nhân',i:[['Khoai tím',150],['Điều',40],['Hạnh nhân',30]],d:10,w:850,soak:'2–4',cook:'15–40',temp:'90–95°C',raw:13900,cost:6200,price:25000},
+  {no:12,n:'Cà rốt – Điều – Hạnh nhân',i:[['Cà rốt',150],['Điều',45],['Hạnh nhân',30]],d:10,w:760,soak:'6–6',cook:'12–18',temp:'90–95°C',raw:12300,cost:5500,price:25000},
+  {no:13,n:'Cacao – Hạt sen – Macca',i:[['Cacao',10],['Hạt sen',45],['Macca',40]],d:15,w:850,soak:'6–8',cook:'15–20',temp:'90–95°C',raw:16000,cost:7400,price:25000},
+  {no:14,n:'Macca – Hạnh nhân',i:[['Macca',50],['Hạnh nhân',55]],d:15,w:850,soak:'6–8',cook:'10–12',temp:'88–92°C',raw:17000,cost:7600,price:25000},
+  {no:15,n:'Điều – Hạnh nhân',i:[['Điều',55],['Hạnh nhân',55]],d:15,w:850,soak:'6–8',cook:'10–12',temp:'88–92°C',raw:15600,cost:7100,price:25000},
+  {no:16,n:'Macca – Óc chó',i:[['Macca',50],['Óc chó',45]],d:18,w:850,soak:'6–8',cook:'15–20',temp:'90–95°C',raw:16600,cost:7500,price:25000},
+  {no:17,n:'Hạt sen – Óc chó',i:[['Hạt sen',50],['Óc chó',45]],d:18,w:850,soak:'4–6',cook:'15–22',temp:'90–95°C',raw:14200,cost:6500,price:25000},
+  {no:18,n:'Mè đen – Óc chó',i:[['Mè đen',30],['Óc chó',50]],d:20,w:780,soak:'8–10',cook:'35–45',temp:'98–100°C',raw:11400,cost:4900,price:25000},
+  {no:19,n:'Đậu gà – Macca',i:[['Đậu gà',65],['Macca',40]],d:20,w:780,soak:'8–10',cook:'35–45',temp:'98–100°C',raw:13800,cost:6700,price:25000},
+  {no:20,n:'Đậu gà – Hạnh nhân',i:[['Đậu gà',65],['Hạnh nhân',40]],d:20,w:760,soak:'8–10',cook:'35–45',temp:'95–100°C',raw:11000,cost:4600,price:25000},
+  {no:21,n:'Đậu lăng – Óc chó',i:[['Đậu lăng',65],['Óc chó',40]],d:20,w:780,soak:'6–8',cook:'20–25',temp:'95–100°C',raw:11100,cost:4700,price:25000},
+  {no:22,n:'Đậu lăng – Macca',i:[['Đậu lăng',65],['Macca',40]],d:20,w:780,soak:'8–10',cook:'35–25',temp:'95–100°C',raw:13700,cost:6600,price:25000},
+  {no:23,n:'Đậu đỏ – Hạnh nhân',i:[['Đậu đỏ',65],['Hạnh nhân',40]],d:20,w:780,soak:'8–10',cook:'35–45',temp:'98–100°C',raw:13600,cost:6500,price:25000},
+  {no:24,n:'Đậu đỏ – Macca',i:[['Đậu đỏ',65],['Macca',40]],d:20,w:780,soak:'8–10',cook:'35–45',temp:'98–100°C',raw:11100,cost:4700,price:25000},
+  {no:25,n:'Ý dĩ – Hạt sen',i:[['Ý dĩ',55],['Hạt sen',50]],d:18,w:820,soak:'6–8',cook:'20–30',temp:'95–100°C',raw:13100,cost:5500,price:25000},
+  {no:26,n:'Ý dĩ – Macca',i:[['Ý dĩ',60],['Macca',40]],d:18,w:820,soak:'6–8',cook:'20–20',temp:'95–100°C',raw:10400,cost:4300,price:25000},
+  {no:27,n:'Kê – Hạnh nhân',i:[['Kê',60],['Hạnh nhân',45]],d:18,w:820,soak:'4–6',cook:'20–25',temp:'95–100°C',raw:12900,cost:5400,price:25000},
+  {no:28,n:'Kê – Macca',i:[['Kê',60],['Macca',40]],d:18,w:820,soak:'4–6',cook:'20–25',temp:'95–100°C',raw:15700,cost:6900,price:25000},
+  {no:29,n:'Cacao – Óc chó – Macca',i:[['Cacao',10],['Óc chó',35],['Macca',40]],d:15,w:850,soak:'6–8',cook:'10–12',temp:'88–92°C',raw:14300,cost:6200,price:25000},
+  {no:30,n:'Mè đen – Hạt sen – Macca',i:[['Mè đen',25],['Hạt sen',45],['Macca',35]],d:18,w:850,soak:'6–8',cook:'15–20',temp:'90–95°C',raw:14200,cost:6100,price:25000},
+  {no:31,n:'Khoai tím – Macca – Hạnh nhân',i:[['Khoai tím',150],['Macca',35],['Hạnh nhân',35]],d:10,w:760,soak:'6–8',cook:'12–18',temp:'90–95°C',raw:16800,cost:7400,price:25000},
+  {no:32,n:'Cải kale – Hạnh nhân – Hạt sen',i:[['Cải kale',40],['Hạnh nhân',50],['Hạt sen',40]],d:15,w:800,soak:'6–8',cook:'3–5*',temp:'90–95°C',raw:16800,cost:7400,price:25000},
+  {no:33,n:'Bắp ngọt – Macca – Điều',i:[['Ngô',180],['Macca',30],['Điều',40]],d:12,w:760,soak:'4–6',cook:'12–20',temp:'90–95°C',raw:15500,cost:6900,price:25000},
+  {no:34,n:'Hạt dẻ – Hạnh nhân – Óc chó',i:[['Hạt dẻ',50],['Hạnh nhân',35],['Óc chó',30]],d:15,w:850,soak:'6–6',cook:'10–12',temp:'88–92°C',raw:17150,cost:8800,price:25000},
+  {no:35,n:'Hạt bí xanh – Macca',i:[['Hạt bí xanh',50],['Macca',45]],d:15,w:850,soak:'6–6',cook:'10–12',temp:'90–95°C',raw:20350,cost:9900,price:25000},
+  {no:36,n:'Gạo lứt – Hạt sen – Mè đen',i:[['Gạo lứt',55],['Hạt sen',45],['Mè đen',20]],d:15,w:850,soak:'6–6',cook:'15–20',temp:'90–95°C',raw:12040,cost:6900,price:22000},
+  {no:37,n:'Hạt dẻ – Macca – Hạt sen',i:[['Hạt dẻ',50],['Macca',40],['Hạt sen',35]],d:15,w:860,soak:'6–8',cook:'16–20',temp:'90–95°C',raw:24400,cost:11400,price:25000},
+  {no:38,n:'Gạo lứt – Hạnh nhân – Hạt bí xanh',i:[['Gạo lứt',55],['Hạnh nhân',35],['Hạt bí xanh',30]],d:15,w:800,soak:'6–8',cook:'12–23',temp:'90–95°C',raw:12090,cost:7000,price:22000},
+  {no:39,n:'Hạt bí xanh – Hạt sen – Điều',i:[['Hạt bí xanh',45],['Hạt sen',40],['Điều',35]],d:12,w:800,soak:'4–6',cook:'12–20',temp:'90–95°C',raw:20910,cost:10100,price:25000},
+];
+function normalizedName(value){
+  return String(value||'').normalize('NFC').toLowerCase().replace(/\s*[–—-]\s*/g,'-').replace(/\s+/g,' ').trim();
+}
+function seedMenuSampleData(){
+  let productsChanged=false, recipesChanged=false, materialsChanged=false;
+  const materialNames=[...new Set(MENU_SAMPLE.flatMap(row=>row.i.map(x=>x[0])).concat(['Chà là','Muối']))];
+  materialNames.forEach(name=>{
+    if(DB.rawMaterials.some(m=>normalizedName(m.name)===normalizedName(name))) return;
+    DB.rawMaterials.push({id:uid(),name,category:'',unit:'kg',costPerKg:0,note:'Ảnh mẫu không cung cấp giá mua/kg — vui lòng tự điền.'});
+    materialsChanged=true;
+  });
+  MENU_SAMPLE.forEach(row=>{
+    let product=DB.products.find(p=>normalizedName(p.name)===normalizedName(row.n));
+    if(!product){
+      product={id:uid(),name:row.n,category:'Sữa hạt',price:row.price,unit:'chai 360ml',desc:''};
+      DB.products.push(product); productsChanged=true;
+    }
+    if(DB.recipes.some(r=>normalizedName(r.name)===normalizedName(row.n))) return;
+    const ingredients=row.i.concat([['Chà là',row.d],['Muối',0.8]]).map(([name,grams])=>{
+      const material=DB.rawMaterials.find(m=>normalizedName(m.name)===normalizedName(name));
+      return {materialId:material?.id||'',name,grams,amount:`${grams} g`};
+    });
+    DB.recipes.push({
+      id:uid(),name:row.n,productId:product.id,
+      yield:'Công thức cho 1 lít sữa · thành phẩm ≈360ml/chai',yieldCount:1,
+      manualUnitCost:row.cost,ingredients,
+      steps:[
+        `Ngâm nguyên liệu ${row.soak} giờ.`,
+        `Hấp/nấu chín mềm nguyên liệu trong ${row.cook} phút ở ${row.temp}.`,
+        `Xay với ${row.w}ml nước, lọc mịn rồi châm thêm nước sạch đủ 1000ml thành phẩm.`,
+        'Nấu chín, khuấy đều, làm lạnh và chiết chai.'
+      ],
+      notes:`Dữ liệu mẫu từ dòng ${row.no} của bảng ảnh. Giá nguyên liệu/1 lít: ${vnd(row.raw)}. Giá vốn/chai 360ml: ${vnd(row.cost)} (đã gồm bao bì theo bảng). Bảo quản lạnh 0–4°C, dùng trong 2–3 ngày.`
+    });
+    recipesChanged=true;
+  });
+  return {materialsChanged,productsChanged,recipesChanged};
 }
 
 /* ================= STATE ================= */
-const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subscribers:[], branches:[] };
+const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subscribers:[], subscriptionPayments:[], branches:[], rawMaterials:[], expenses:[] };
 let LOADED = false;
 let TAB = 'dashboard';
 let ordersFilter = { mode:'today', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
@@ -413,21 +520,29 @@ function subscriberOf(id){ return DB.subscribers.find(s=>s.id===id); }
 
 async function init(){
   initSupabase();
-  const [p,r,c,o,pkgs,subr,legacySubs,b] = await Promise.all([
+  const [p,r,c,o,pkgs,subr,subPayments,legacySubs,b,rm,ex,menuSampleSeeded] = await Promise.all([
     loadKey('nuts:products', null),
     loadKey('nuts:recipes', []),
     loadKey('nuts:customers', []),
     loadKey('nuts:orders', []),
     loadKey('nuts:packages', null),
     loadKey('nuts:subscribers', null),
+    loadKey('nuts:subscription_payments', []),
     loadKey('nuts:subs', []),
     loadKey('nuts:branches', null),
+    loadKey('nuts:raw_materials', []),
+    loadKey('nuts:expenses', []),
+    loadKey('nuts:menu_39_sample_seeded', false),
   ]);
   DB.products = p ?? seedProducts();
   DB.recipes = r ?? [];
   DB.customers = c ?? [];
   DB.orders = o ?? [];
   DB.branches = b ?? seedBranches();
+  DB.rawMaterials = rm ?? [];
+  DB.expenses = ex ?? [];
+  DB.subscriptionPayments = subPayments ?? [];
+  migrateRecipeIngredients();
   if(pkgs && subr){
     DB.packages = pkgs; DB.subscribers = subr;
   } else {
@@ -437,9 +552,20 @@ async function init(){
     saveKey('nuts:packages', DB.packages);
     saveKey('nuts:subscribers', DB.subscribers);
   }
+  if(!menuSampleSeeded){
+    seedMenuSampleData();
+    await Promise.all([
+      saveKey('nuts:products', DB.products),
+      saveKey('nuts:recipes', DB.recipes),
+      saveKey('nuts:raw_materials', DB.rawMaterials),
+    ]);
+    await saveKey('nuts:menu_39_sample_seeded', true);
+  }
   LOADED = true;
   saveKey('nuts:products', DB.products);
   saveKey('nuts:branches', DB.branches);
+  saveKey('nuts:raw_materials', DB.rawMaterials);
+  saveKey('nuts:expenses', DB.expenses);
   render();
   if(supaClient) setupRealtimeSync();
 }
@@ -449,19 +575,119 @@ function persistCustomers(){ saveKey('nuts:customers', DB.customers); }
 function persistOrders(){ saveKey('nuts:orders', DB.orders); }
 function persistPackages(){ saveKey('nuts:packages', DB.packages); }
 function persistSubscribers(){ saveKey('nuts:subscribers', DB.subscribers); }
+function persistSubscriptionPayments(){ saveKey('nuts:subscription_payments', DB.subscriptionPayments); }
 function persistBranches(){ saveKey('nuts:branches', DB.branches); }
+function persistRawMaterials(){ saveKey('nuts:raw_materials', DB.rawMaterials); }
+function persistExpenses(){ saveKey('nuts:expenses', DB.expenses); }
 function branchOf(id){ return DB.branches.find(b=>b.id===id); }
 function branchName(id){ return branchOf(id)?.name || '—'; }
 
+
+/* ================= COST / PROFIT HELPERS ================= */
+const DEFAULT_EXPENSE_CATEGORIES = ['Nguyên liệu','Bao bì','Nhân công','Vận chuyển','Điện nước','Marketing','Thuê mặt bằng','Phí nền tảng','Khấu hao','Khác'];
+function parseGrams(value){
+  const s = String(value ?? '').trim().toLowerCase().replace(',', '.');
+  if(!s) return 0;
+  const m = s.match(/([\d.]+)\s*(kg|g|gram|gam)?/i);
+  if(!m) return Number(s)||0;
+  const n = Number(m[1])||0;
+  return m[2]==='kg' ? n*1000 : n;
+}
+function parseYieldCount(value){
+  const s = String(value||'').replace(',', '.');
+  const m = s.match(/(\d+(?:\.\d+)?)/);
+  return m ? Math.max(1, Number(m[1])) : 1;
+}
+function materialOf(id){ return DB.rawMaterials.find(m=>m.id===id); }
+function recipeOfProduct(productId){ return DB.recipes.find(r=>r.productId===productId); }
+function ingredientMaterial(ing){
+  if(ing?.materialId) return materialOf(ing.materialId);
+  return DB.rawMaterials.find(m=>String(m.name||'').trim().toLowerCase()===String(ing?.name||'').trim().toLowerCase());
+}
+function ingredientCost(ing){
+  const mat = ingredientMaterial(ing);
+  const grams = ing?.grams!=null ? Number(ing.grams)||0 : parseGrams(ing?.amount);
+  return mat ? grams*(Number(mat.costPerKg)||0)/1000 : 0;
+}
+function recipeBatchCost(recipe){
+  return (recipe?.ingredients||[]).reduce((s,ing)=>s+ingredientCost(ing),0);
+}
+function recipeUnitCost(recipe){
+  if(!recipe) return 0;
+  if(Number(recipe.manualUnitCost)>0) return Number(recipe.manualUnitCost);
+  return recipeBatchCost(recipe)/(Number(recipe.yieldCount)||parseYieldCount(recipe.yield)||1);
+}
+function productUnitCost(productId){
+  const r = recipeOfProduct(productId);
+  return recipeUnitCost(r);
+}
+function orderCOGS(order){
+  if(!order || order.status==='da_huy') return 0;
+  return (order.items||[]).reduce((s,it)=>s+productUnitCost(it.productId)*Number(it.qty||0),0);
+}
+function expensesInRange(range, branch){
+  return DB.expenses.filter(e=>e.date>=range.from && e.date<=range.to && (!branch || branch==='all' || !e.branchId || e.branchId===branch));
+}
+function subscriptionPaymentsInRange(range, branch){
+  return DB.subscriptionPayments.filter(p=>p.date>=range.from && p.date<=range.to && (!branch || branch==='all' || !p.branchId || p.branchId===branch));
+}
+function subscriptionRevenueInRange(range, branch){
+  return subscriptionPaymentsInRange(range, branch).reduce((s,p)=>s+(Number(p.amount)||0),0);
+}
+function recordSubscriptionPayment(subscriber, pkg, kind, date){
+  const amount = Number(pkg?.price)||0;
+  if(!subscriber || !pkg || amount<=0) return;
+  DB.subscriptionPayments.push({
+    id:uid(), subscriberId:subscriber.id, packageId:pkg.id,
+    customerId:subscriber.customerId, customerName:subscriber.customerName,
+    packageName:pkg.name, amount, kind, date:date||todayISO(),
+    createdAt:new Date().toISOString(),
+  });
+  persistSubscriptionPayments();
+}
+function revenueInOrders(list){ return (list||[]).filter(o=>o.status!=='da_huy').reduce((s,o)=>s+(Number(o.total)||0),0); }
+function cogsInOrders(list){ return (list||[]).filter(o=>o.status!=='da_huy').reduce((s,o)=>s+orderCOGS(o),0); }
+function profitForRange(range, branch){
+  const os = ordersInRange(range, branch);
+  const revenue = revenueInOrders(os) + subscriptionRevenueInRange(range, branch);
+  const cogs = cogsInOrders(os);
+  const expenses = expensesInRange(range, branch).reduce((s,e)=>s+(Number(e.amount)||0),0);
+  return { revenue, cogs, expenses, profit: revenue-cogs-expenses, margin: revenue ? ((revenue-cogs-expenses)/revenue)*100 : 0 };
+}
+function getExpenseCategories(){
+  const custom = DB.expenses.map(e=>e.category).filter(Boolean);
+  return [...new Set(DEFAULT_EXPENSE_CATEGORIES.concat(custom))];
+}
+function migrateRecipeIngredients(){
+  let changed=false, materialsChanged=false;
+  DB.recipes.forEach(r=>{
+    (r.ingredients||[]).forEach(ing=>{
+      if(ing.materialId) return;
+      const wanted=String(ing.name||'').trim();
+      if(!wanted) return;
+      let mat=DB.rawMaterials.find(m=>String(m.name||'').trim().toLowerCase()===wanted.toLowerCase());
+      if(!mat){
+        mat={id:uid(),name:wanted,category:'',unit:'kg',costPerKg:0,note:'Tự tạo từ công thức cũ'};
+        DB.rawMaterials.push(mat); materialsChanged=true;
+      }
+      ing.materialId=mat.id;
+      ing.grams=ing.grams!=null ? Number(ing.grams)||0 : parseGrams(ing.amount);
+      changed=true;
+    });
+  });
+  if(materialsChanged) persistRawMaterials();
+  if(changed) persistRecipes();
+}
+
 /* ============ Date range helpers (ngày / tuần / tháng / tùy chỉnh) ============ */
-function isoAddDays(iso, delta){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+delta); return d.toISOString().slice(0,10); }
+function isoAddDays(iso, delta){ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+delta); return localISODate(d); }
 function resolveRange(filter){
   const today = todayISO();
   if(filter.mode==='today') return { from: today, to: today };
   if(filter.mode==='week') return { from: isoAddDays(today,-6), to: today };
-  if(filter.mode==='month'){ const d=new Date(); const first=new Date(d.getFullYear(), d.getMonth(),1).toISOString().slice(0,10); return { from:first, to: today }; }
+  if(filter.mode==='month'){ const d=new Date(); const first=localISODate(new Date(d.getFullYear(), d.getMonth(),1)); return { from:first, to: today }; }
   if(filter.mode==='all'){
-    const dates = DB.orders.map(o=>o.deliveryDate).filter(Boolean).sort();
+    const dates = DB.orders.map(o=>o.deliveryDate).concat(DB.subscriptionPayments.map(p=>p.date)).filter(Boolean).sort();
     return { from: dates[0] || today, to: today };
   }
   return { from: filter.from||today, to: filter.to||today };
@@ -496,7 +722,9 @@ function buildSeries(range, branch){
     }
   }
   return days.map(d=>{
-    const total = DB.orders.filter(o=>o.deliveryDate>=d.from && o.deliveryDate<=d.to && o.status!=='da_huy' && (!branch||branch==='all'||o.branchId===branch)).reduce((s,o)=>s+o.total,0);
+    const orderTotal = DB.orders.filter(o=>o.deliveryDate>=d.from && o.deliveryDate<=d.to && o.status!=='da_huy' && (!branch||branch==='all'||o.branchId===branch)).reduce((s,o)=>s+o.total,0);
+    const packageTotal = subscriptionRevenueInRange({from:d.from,to:d.to}, branch);
+    const total = orderTotal + packageTotal;
     return { ...d, total };
   });
 }
@@ -565,6 +793,7 @@ function renderMain(){
   else if(TAB==='branches') el.innerHTML = renderBranchesTab();
   else if(TAB==='products') el.innerHTML = renderProductsTab();
   else if(TAB==='recipes') el.innerHTML = renderRecipesTab();
+  else if(TAB==='expenses') el.innerHTML = renderExpensesTab();
   else if(TAB==='settings') el.innerHTML = renderSettingsTab();
 }
 
@@ -625,19 +854,24 @@ function renderDashboard(){
 
   const rangeOrders = ordersInRange(range, branch);
   const activeOrders = rangeOrders.filter(o=>o.status!=='da_huy');
-  const revenue = activeOrders.reduce((s,o)=>s+o.total,0);
+  const orderRevenue = activeOrders.reduce((s,o)=>s+o.total,0);
+  const revenue = orderRevenue + subscriptionRevenueInRange(range, branch);
   const qtySold = activeOrders.reduce((s,o)=>s+o.items.reduce((a,it)=>a+it.qty,0),0);
-  const avgOrder = activeOrders.length ? Math.round(revenue/activeOrders.length) : 0;
+  const avgOrder = activeOrders.length ? Math.round(orderRevenue/activeOrders.length) : 0;
 
   const prevOrders = ordersInRange(prevRange, branch).filter(o=>o.status!=='da_huy');
-  const prevRevenue = prevOrders.reduce((s,o)=>s+o.total,0);
+  const prevOrderRevenue = prevOrders.reduce((s,o)=>s+o.total,0);
+  const prevRevenue = prevOrderRevenue + subscriptionRevenueInRange(prevRange, branch);
   const prevQty = prevOrders.reduce((s,o)=>s+o.items.reduce((a,it)=>a+it.qty,0),0);
-  const prevAvg = prevOrders.length ? Math.round(prevRevenue/prevOrders.length) : 0;
+  const prevAvg = prevOrders.length ? Math.round(prevOrderRevenue/prevOrders.length) : 0;
 
   const revenueGrowth = pctGrowth(revenue, prevRevenue);
   const orderGrowth = pctGrowth(activeOrders.length, prevOrders.length);
   const avgGrowth = pctGrowth(avgOrder, prevAvg);
   const qtyGrowth = pctGrowth(qtySold, prevQty);
+  const finance = profitForRange(range, branch);
+  const prevFinance = profitForRange(prevRange, branch);
+  const profitGrowth = pctGrowth(finance.profit, prevFinance.profit);
 
   const activeSubsCount = DB.subscribers.filter(s=>s.status==='dang_hoat_dong').length;
 
@@ -701,6 +935,12 @@ function renderDashboard(){
       ${statCard('📦','var(--icon-blue)','Sản phẩm đã bán', qtySold, qtyGrowth)}
     </div>
 
+    <div class="profit-grid">
+      <div class="profit-box"><div class="profit-box-label">Giá vốn (COGS)</div><div class="profit-box-value">${vnd(finance.cogs)}</div><div class="profit-box-note">Theo công thức từng món</div></div>
+      <div class="profit-box"><div class="profit-box-label">Chi phí</div><div class="profit-box-value">${vnd(finance.expenses)}</div><div class="profit-box-note">Chi phí nhập trong kỳ</div></div>
+      <div class="profit-box"><div class="profit-box-label">Lợi nhuận</div><div class="profit-box-value ${finance.profit>=0?'profit-positive':'profit-negative'}">${vnd(finance.profit)}</div><div class="profit-box-note">${profitGrowth>=0?'↗':'↘'} ${Math.abs(profitGrowth)}% so với kỳ trước</div></div>
+      <div class="profit-box"><div class="profit-box-label">Biên lợi nhuận</div><div class="profit-box-value ${finance.margin>=0?'profit-positive':'profit-negative'}">${finance.margin.toFixed(1)}%</div><div class="profit-box-note">Lợi nhuận / doanh thu</div></div>
+    </div>
     <div class="panel" style="margin-bottom:18px;">
       <div class="panel-title" style="margin-bottom:6px;">Doanh thu — Hiện tại so với kỳ trước</div>
       <div class="linechart-legend">
@@ -719,6 +959,7 @@ function renderDashboard(){
       <button class="qa-item" onclick="setTab('customers')"><span class="qa-icon" style="background:var(--icon-blue);">👥</span><span class="qa-label">Khách hàng</span></button>
       <button class="qa-item" onclick="setTab('subscriptions')"><span class="qa-icon" style="background:var(--icon-gold);">🔁</span><span class="qa-label">Gói đăng ký</span></button>
       <button class="qa-item" onclick="setTab('products')"><span class="qa-icon" style="background:var(--icon-red);">📦</span><span class="qa-label">Sản phẩm</span></button>
+      <button class="qa-item" onclick="setTab('expenses')"><span class="qa-icon" style="background:var(--icon-gold);">💸</span><span class="qa-label">Chi phí</span></button>
     </div>
 
     <div class="panel-title" style="font-size:16px;margin-bottom:12px;">Đơn hàng chờ xử lý</div>
@@ -1371,9 +1612,12 @@ function setSubscriberStatus(id, status){
 function renewSubscriber(id){
   const s = subscriberOf(id); if(!s) return;
   const pkg = packageOf(s.packageId); if(!pkg) return;
-  if(!confirm(`Làm mới chu kỳ cho ${s.customerName}? Số lượng còn lại sẽ trở về ${pkg.totalQty}/${pkg.totalQty} ${pkg.unitLabel||'ly'}.`)) return;
+  if(!confirm(`Làm mới chu kỳ cho ${s.customerName}? Số lượng còn lại sẽ trở về ${pkg.totalQty}/${pkg.totalQty} ${pkg.unitLabel||'ly'} và ${vnd(pkg.price)} sẽ được cộng vào doanh thu hôm nay.`)) return;
   s.remainingQty = pkg.totalQty;
+  s.startDate = todayISO();
+  s.status = 'dang_hoat_dong';
   persistSubscribers();
+  recordSubscriptionPayment(s, pkg, 'gia_han', todayISO());
   if(modalOpenNow()) openPackageDetail(pkg.id);
   render();
 }
@@ -1480,7 +1724,7 @@ function openSubscriberModal(packageId){
   const availableCustomers = DB.customers.filter(c=>!alreadyIds.has(c.id));
   const body = `
     <form onsubmit="submitSubscriber(event,'${packageId}')">
-      <div class="field-hint" style="margin-bottom:12px;">Thêm khách vào gói "<strong>${escapeHtml(pkg.name)}</strong>". Khách mới sẽ mặc định được cấp <strong>${pkg.totalQty}/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</strong>.</div>
+      <div class="field-hint" style="margin-bottom:12px;">Thêm khách vào gói "<strong>${escapeHtml(pkg.name)}</strong>". Khách mới sẽ mặc định được cấp <strong>${pkg.totalQty}/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</strong> và <strong>${vnd(pkg.price)}</strong> được cộng vào doanh thu hôm nay.</div>
       <div class="mode-toggle">
         <label><input type="radio" name="subrMode" value="existing" ${hasCustomers?'checked':''} onchange="toggleSubscriberCustomerMode('existing')"><span>Khách có sẵn</span></label>
         <label><input type="radio" name="subrMode" value="new" ${hasCustomers?'':'checked'} onchange="toggleSubscriberCustomerMode('new')"><span>Khách mới</span></label>
@@ -1535,6 +1779,7 @@ function submitSubscriber(e, packageId){
   };
   DB.subscribers.push(subscriber);
   persistSubscribers();
+  recordSubscriptionPayment(subscriber, pkg, 'dang_ky_moi', todayISO());
   openPackageDetail(packageId);
   render();
 }
@@ -1612,30 +1857,63 @@ function deleteProduct(id){
 /* ================= RECIPES ================= */
 function renderRecipesTab(){
   return `
-    ${sectionHeader('Công thức', 'Lưu công thức pha chế cho từng loại sữa hạt',
-      `<button class="btn btn-solid" onclick="openRecipeModal()">＋ Thêm công thức</button>`)}
-    ${DB.recipes.length===0 ? `<div class="empty-state"><div class="empty-icon">📖</div><div class="empty-title">Chưa có công thức nào</div><div class="empty-sub">Lưu lại công thức để pha chế nhất quán mỗi lần.</div>
+    ${sectionHeader('Công thức', 'Lưu công thức pha chế cho từng loại sữa hạt + tự động tính giá cost',`
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-ghost" onclick="openMaterialModal()">＋ Nguyên liệu & cost</button>
+        <button class="btn btn-solid" onclick="openRecipeModal()">＋ Thêm công thức</button>
+      </div>`)}
+    <div class="panel" style="margin-bottom:18px;">
+      <div class="section-header" style="margin-bottom:12px;">
+        <div>
+          <div class="panel-title" style="margin:0;">Danh mục nguyên liệu</div>
+          <div class="field-hint">Nhập giá cost theo kg. Khi nhập gram trong công thức, hệ thống tự tính chi phí nguyên liệu.</div>
+        </div>
+        <button class="btn btn-ghost" style="padding:6px 10px;font-size:12.5px;" onclick="openMaterialModal()">＋ Thêm</button>
+      </div>
+      ${DB.rawMaterials.length===0
+        ? `<div style="font-size:13px;color:var(--ink-faint);padding:8px 0;">Chưa có nguyên liệu. Hãy thêm hạnh nhân, óc chó, đậu đen, đường, sữa tươi, chai, đá... và giá cost.</div>`
+        : `<div style="overflow-x:auto;"><table class="cost-table">
+            <thead><tr><th>Nguyên liệu</th><th>Đơn vị</th><th class="cost-right">Giá cost</th><th></th></tr></thead>
+            <tbody>${DB.rawMaterials.map(m=>`<tr>
+              <td><strong>${escapeHtml(m.name)}</strong>${m.category?`<div class="material-chip" style="margin-top:3px;">${escapeHtml(m.category)}</div>`:''}</td>
+              <td>${escapeHtml(m.unit||'kg')}</td>
+              <td class="cost-right">${Number(m.costPerKg)>0?`<strong>${vnd(m.costPerKg)}</strong>/kg`:`<span style="color:var(--ink-faint);">Chưa nhập</span>`}</td>
+              <td class="cost-right"><button class="icon-btn" onclick="openMaterialModal('${m.id}')">✎</button><button class="icon-btn" onclick="deleteMaterial('${m.id}')">🗑</button></td>
+            </tr>`).join('')}</tbody>
+          </table></div>`
+      }
+    </div>
+    ${DB.recipes.length===0 ? `<div class="empty-state"><div class="empty-icon">📖</div><div class="empty-title">Chưa có công thức nào</div><div class="empty-sub">Lưu lại công thức để pha chế nhất quán và tự tính cost.</div>
       <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openRecipeModal()">＋ Thêm công thức</button></div></div>` :
       DB.recipes.map(r=>{
         const product = DB.products.find(p=>p.id===r.productId);
+        const batchCost = recipeBatchCost(r);
+        const unitCost = recipeUnitCost(r);
         return `<div class="recipe-card">
           <div class="recipe-head" onclick="toggleRecipe('${r.id}')">
-            <div><div style="font-weight:700;font-size:14.5px;">${escapeHtml(r.name)}</div>${product?`<div style="font-size:12px;color:var(--gold);font-weight:600;">Áp dụng cho: ${escapeHtml(product.name)}</div>`:''}</div>
+            <div>
+              <div style="font-weight:700;font-size:14.5px;">${escapeHtml(r.name)}</div>
+              ${product?`<div style="font-size:12px;color:var(--gold);font-weight:600;">Áp dụng cho: ${escapeHtml(product.name)}</div>`:''}
+              <div class="cost-preview">Cost mẻ: ${vnd(batchCost)} · Cost/đơn vị: ${vnd(unitCost)}</div>
+            </div>
             <span class="chevron" id="chev-${r.id}">▾</span>
           </div>
           <div class="recipe-body" id="body-${r.id}">
             <div class="recipe-cols">
               <div class="recipe-col">
                 <div class="recipe-col-title">Nguyên liệu ${r.yield?`(cho ${escapeHtml(r.yield)})`:''}</div>
-                <ul>${r.ingredients.map(ing=>`<li>${escapeHtml(ing.name)} — ${escapeHtml(ing.amount)}</li>`).join('')}</ul>
+                <ul>${(r.ingredients||[]).map(ing=>{
+                  const mat=ingredientMaterial(ing); const grams=ing.grams!=null?Number(ing.grams)||0:parseGrams(ing.amount); const c=ingredientCost(ing);
+                  return `<li>${escapeHtml(mat?.name||ing.name)} — ${grams?grams+' g':escapeHtml(ing.amount||'')} ${c?`<span style="color:var(--green);font-weight:700;">(${vnd(c)})</span>`:''}</li>`;
+                }).join('')}</ul>
               </div>
               <div class="recipe-col">
                 <div class="recipe-col-title">Các bước thực hiện</div>
-                <ol>${r.steps.map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ol>
+                <ol>${(r.steps||[]).map(s=>`<li>${escapeHtml(s)}</li>`).join('')}</ol>
               </div>
             </div>
             ${r.notes?`<div class="recipe-note">${escapeHtml(r.notes)}</div>`:''}
-            <div style="display:flex;gap:8px;margin-top:12px;">
+            <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;">
               <button class="btn btn-ghost" onclick="openRecipeModal('${r.id}')">✎ Sửa</button>
               <button class="btn btn-danger" onclick="deleteRecipe('${r.id}')">🗑 Xóa</button>
             </div>
@@ -1649,88 +1927,182 @@ function toggleRecipe(id){
   document.getElementById('body-'+id).classList.toggle('open');
   document.getElementById('chev-'+id).classList.toggle('open');
 }
-function recipeIngRowHtml(name,amount){
-  return `<div class="item-row">
-    <input class="input" placeholder="Tên nguyên liệu" value="${escapeHtml(name||'')}" style="flex:2;">
-    <input class="input" placeholder="Số lượng" value="${escapeHtml(amount||'')}" style="flex:1;width:auto;">
-    <button type="button" class="row-remove" onclick="this.closest('.item-row').remove()">✕</button>
-  </div>`;
-}
 function recipeStepRowHtml(idx, text){
   return `<div class="item-row"><span style="font-size:12.5px;color:var(--ink-faint);width:16px;">${idx}.</span>
     <input class="input" value="${escapeHtml(text||'')}" style="flex:1;">
     <button type="button" class="row-remove" onclick="this.closest('.item-row').remove();renumberSteps()">✕</button>
   </div>`;
 }
-function renumberSteps(){
-  document.querySelectorAll('#recipeStepsContainer .item-row').forEach((row,i)=>{
-    row.querySelector('span').textContent = (i+1)+'.';
-  });
+function recipeIngRowHtml(ing){
+  const mat = ingredientMaterial(ing||{});
+  const grams = ing?.grams!=null ? Number(ing.grams)||0 : parseGrams(ing?.amount);
+  const materialId = ing?.materialId || mat?.id || '';
+  return `<div class="item-row recipe-ing-row" style="display:block;">
+    <div class="recipe-ing-grid">
+      <select class="input recipe-material" onchange="refreshRecipeCostPreview()">
+        <option value="">— Chọn nguyên liệu —</option>
+        ${DB.rawMaterials.map(m=>`<option value="${m.id}" ${materialId===m.id?'selected':''}>${escapeHtml(m.name)}</option>`).join('')}
+      </select>
+      <input class="input recipe-grams" type="number" min="0" step="0.1" placeholder="gram" value="${grams||''}" oninput="refreshRecipeCostPreview()">
+      <div class="input" style="background:var(--panel-alt);">—</div>
+      <button type="button" class="row-remove" onclick="this.closest('.recipe-ing-row').remove();refreshRecipeCostPreview()">✕</button>
+    </div>
+  </div>`;
 }
-function addIngredientRow(){ document.getElementById('recipeIngContainer').insertAdjacentHTML('beforeend', recipeIngRowHtml()); }
+function renumberSteps(){
+  document.querySelectorAll('#recipeStepsContainer .item-row').forEach((row,i)=>row.querySelector('span').textContent=(i+1)+'.');
+}
+function addIngredientRow(){ 
+  const box=document.getElementById('recipeIngContainer');
+  if(box) box.insertAdjacentHTML('beforeend', recipeIngRowHtml({}));
+  refreshRecipeCostPreview();
+}
 function addStepRow(){
-  const count = document.querySelectorAll('#recipeStepsContainer .item-row').length;
+  const count=document.querySelectorAll('#recipeStepsContainer .item-row').length;
   document.getElementById('recipeStepsContainer').insertAdjacentHTML('beforeend', recipeStepRowHtml(count+1,''));
 }
-function openRecipeModal(recipeId){
-  const r = recipeId ? DB.recipes.find(x=>x.id===recipeId) : null;
-  const ingredients = r?.ingredients?.length ? r.ingredients : [{name:'',amount:''}];
-  const steps = r?.steps?.length ? r.steps : [''];
-  const body = `
-    <form onsubmit="submitRecipe(event,'${recipeId||''}')">
-      <div class="field-row">
-        <div class="field"><span class="field-label">Tên công thức</span><input class="input" id="recName" value="${escapeHtml(r?.name||'')}"></div>
-        <div class="field"><span class="field-label">Áp dụng cho sản phẩm</span>
-          <select class="input" id="recProduct"><option value="">— Không gắn sản phẩm —</option>${DB.products.map(p=>`<option value="${p.id}" ${r?.productId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select>
-        </div>
-      </div>
-      <div class="field"><span class="field-label">Định lượng thành phẩm</span><input class="input" id="recYield" value="${escapeHtml(r?.yield||'')}" placeholder="Ví dụ: 5 chai 500ml"></div>
-      <div class="field">
-        <span class="field-label">Nguyên liệu</span>
-        <div id="recipeIngContainer">${ingredients.map(i=>recipeIngRowHtml(i.name,i.amount)).join('')}</div>
-        <button type="button" class="add-row-btn" onclick="addIngredientRow()">＋ Thêm nguyên liệu</button>
-      </div>
-      <div class="field">
-        <span class="field-label">Các bước thực hiện</span>
-        <div id="recipeStepsContainer">${steps.map((s,i)=>recipeStepRowHtml(i+1,s)).join('')}</div>
-        <button type="button" class="add-row-btn" onclick="addStepRow()">＋ Thêm bước</button>
-      </div>
-      <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="recNotes" placeholder="Mẹo pha chế, thời gian bảo quản...">${escapeHtml(r?.notes||'')}</textarea></div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-solid">Lưu công thức</button>
-        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
-      </div>
-    </form>
-  `;
-  openModal(r?'Sửa công thức':'Thêm công thức', body, true);
+function refreshRecipeCostPreview(){
+  const box=document.getElementById('recipeCostPreview'); if(!box) return;
+  let cost=0;
+  document.querySelectorAll('#recipeIngContainer .recipe-ing-row').forEach(row=>{
+    const m=materialOf(row.querySelector('.recipe-material')?.value);
+    const g=Number(row.querySelector('.recipe-grams')?.value)||0;
+    cost += m ? g*(Number(m.costPerKg)||0)/1000 : 0;
+  });
+  const y=Number(document.getElementById('recYieldCount')?.value)||1;
+  const manual=Number(document.getElementById('recManualUnitCost')?.value)||0;
+  box.innerHTML = `<strong>Cost mẻ theo nguyên liệu: ${vnd(cost)}</strong> · Cost/đơn vị: <strong>${vnd(manual||cost/y)}</strong>${manual?' (nhập theo bảng)':''}`;
 }
-function submitRecipe(e, recipeId){
+function openMaterialModal(materialId){
+  const m=materialId?materialOf(materialId):null;
+  const body=`<form onsubmit="submitMaterial(event,'${materialId||''}')">
+    <div class="field"><span class="field-label">Tên nguyên liệu</span><input class="input" id="matName" value="${escapeHtml(m?.name||'')}" placeholder="Hạnh nhân"></div>
+    <div class="field-row">
+      <div class="field"><span class="field-label">Nhóm</span><input class="input" id="matCategory" value="${escapeHtml(m?.category||'')} " placeholder="Hạt, sữa, đường..."></div>
+      <div class="field"><span class="field-label">Đơn vị nhập</span><input class="input" id="matUnit" value="${escapeHtml(m?.unit||'kg')}" placeholder="kg"></div>
+    </div>
+    <div class="field"><span class="field-label">Giá cost (đ/kg)</span><input class="input" type="number" min="0" id="matCost" value="${m?.costPerKg||''}" placeholder="150000"></div>
+    <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="matNote">${escapeHtml(m?.note||'')}</textarea></div>
+    <div class="form-actions"><button type="submit" class="btn btn-solid">Lưu nguyên liệu</button><button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button></div>
+  </form>`;
+  openModal(m?'Sửa nguyên liệu':'Thêm nguyên liệu',body);
+}
+function submitMaterial(e,id){
   e.preventDefault();
-  const name = document.getElementById('recName').value.trim();
-  if(!name){ alert('Vui lòng nhập tên công thức.'); return; }
-  const ingredients = Array.from(document.querySelectorAll('#recipeIngContainer .item-row')).map(row=>{
-    const inputs = row.querySelectorAll('input');
-    return { name: inputs[0].value.trim(), amount: inputs[1].value.trim() };
-  }).filter(i=>i.name);
-  const steps = Array.from(document.querySelectorAll('#recipeStepsContainer .item-row')).map(row=>row.querySelector('input').value.trim()).filter(s=>s);
-  const recipe = {
-    id: recipeId || uid(), name,
-    productId: document.getElementById('recProduct').value,
-    yield: document.getElementById('recYield').value,
-    ingredients, steps,
-    notes: document.getElementById('recNotes').value,
-  };
-  if(recipeId) DB.recipes = DB.recipes.map(r=>r.id===recipeId?recipe:r);
-  else DB.recipes.push(recipe);
-  persistRecipes();
-  closeModal();
-  render();
+  const name=document.getElementById('matName').value.trim();
+  if(!name){alert('Vui lòng nhập tên nguyên liệu.');return;}
+  const obj={id:id||uid(),name,category:document.getElementById('matCategory').value.trim(),unit:document.getElementById('matUnit').value.trim()||'kg',costPerKg:Number(document.getElementById('matCost').value)||0,note:document.getElementById('matNote').value};
+  if(id) DB.rawMaterials=DB.rawMaterials.map(m=>m.id===id?obj:m); else DB.rawMaterials.push(obj);
+  persistRawMaterials(); migrateRecipeIngredients(); closeModal(); render();
+}
+function deleteMaterial(id){
+  if(!confirm('Xóa nguyên liệu này? Công thức cũ vẫn được giữ lại, nhưng cost sẽ không còn tự tính nếu không còn nguyên liệu tương ứng.')) return;
+  DB.rawMaterials=DB.rawMaterials.filter(m=>m.id!==id); persistRawMaterials(); render();
+}
+function openRecipeModal(recipeId){
+  const r=recipeId?DB.recipes.find(x=>x.id===recipeId):null;
+  const ingredients=r?.ingredients?.length?r.ingredients:[{name:'',amount:'',materialId:'',grams:0}];
+  const steps=r?.steps?.length?r.steps:[''];
+  const body=`<form onsubmit="submitRecipe(event,'${recipeId||''}')">
+    <div class="field-row">
+      <div class="field"><span class="field-label">Tên công thức</span><input class="input" id="recName" value="${escapeHtml(r?.name||'')}"></div>
+      <div class="field"><span class="field-label">Áp dụng cho sản phẩm</span>
+        <select class="input" id="recProduct"><option value="">— Không gắn sản phẩm —</option>${DB.products.map(p=>`<option value="${p.id}" ${r?.productId===p.id?'selected':''}>${escapeHtml(p.name)}</option>`).join('')}</select>
+      </div>
+    </div>
+    <div class="field-row">
+      <div class="field"><span class="field-label">Định lượng thành phẩm (ghi chú)</span><input class="input" id="recYield" value="${escapeHtml(r?.yield||'')}" placeholder="Ví dụ: 5 chai 500ml"></div>
+      <div class="field"><span class="field-label">Số đơn vị thành phẩm</span><input class="input" type="number" min="1" step="1" id="recYieldCount" value="${r?.yieldCount||parseYieldCount(r?.yield)||1}" oninput="refreshRecipeCostPreview()"><span class="field-hint">Dùng để chia cost mẻ thành cost/ly hoặc chai.</span></div>
+    </div>
+    <div class="field"><span class="field-label">Giá cost / đơn vị (đ, không bắt buộc)</span><input class="input" type="number" min="0" id="recManualUnitCost" value="${r?.manualUnitCost||''}" placeholder="Ví dụ: 7700" oninput="refreshRecipeCostPreview()"><span class="field-hint">Nếu nhập, hệ thống ưu tiên giá này để tính COGS. Phù hợp khi đã có giá vốn/chai nhưng chưa có giá mua từng nguyên liệu.</span></div>
+    <div class="field">
+      <span class="field-label">Nguyên liệu</span>
+      ${DB.rawMaterials.length===0?`<div class="field-hint" style="margin-bottom:8px;">Chưa có danh mục nguyên liệu. Hãy tạo nguyên liệu trước để hệ thống tính cost theo gram.</div>`:''}
+      <div class="recipe-ing-head"><span>Nguyên liệu</span><span>Định lượng</span><span>Cost</span><span></span></div>
+      <div id="recipeIngContainer">${ingredients.map(i=>recipeIngRowHtml(i)).join('')}</div>
+      <button type="button" class="add-row-btn" onclick="addIngredientRow()">＋ Thêm nguyên liệu</button>
+      <div class="recipe-cost-summary" id="recipeCostPreview">Cost mẻ: 0đ · Cost/đơn vị: 0đ</div>
+    </div>
+    <div class="field">
+      <span class="field-label">Các bước thực hiện</span>
+      <div id="recipeStepsContainer">${steps.map((s,i)=>recipeStepRowHtml(i+1,s)).join('')}</div>
+      <button type="button" class="add-row-btn" onclick="addStepRow()">＋ Thêm bước</button>
+    </div>
+    <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="recNotes" placeholder="Mẹo pha chế, thời gian bảo quản...">${escapeHtml(r?.notes||'')}</textarea></div>
+    <div class="form-actions"><button type="submit" class="btn btn-solid">Lưu công thức</button><button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button></div>
+  </form>`;
+  openModal(r?'Sửa công thức':'Thêm công thức',body,true);
+  refreshRecipeCostPreview();
+}
+function submitRecipe(e,recipeId){
+  e.preventDefault();
+  const name=document.getElementById('recName').value.trim();
+  if(!name){alert('Vui lòng nhập tên công thức.');return;}
+  const ingredients=Array.from(document.querySelectorAll('#recipeIngContainer .recipe-ing-row')).map(row=>{
+    const materialId=row.querySelector('.recipe-material')?.value||'';
+    const grams=Number(row.querySelector('.recipe-grams')?.value)||0;
+    const mat=materialOf(materialId);
+    return {materialId,name:mat?.name||'',grams,amount:grams?`${grams} g`:''};
+  }).filter(i=>i.name || i.grams);
+  const steps=Array.from(document.querySelectorAll('#recipeStepsContainer .item-row')).map(row=>row.querySelector('input').value.trim()).filter(s=>s);
+  const recipe={id:recipeId||uid(),name,productId:document.getElementById('recProduct').value,yield:document.getElementById('recYield').value,yieldCount:Number(document.getElementById('recYieldCount').value)||parseYieldCount(document.getElementById('recYield').value)||1,manualUnitCost:Number(document.getElementById('recManualUnitCost').value)||0,ingredients,steps,notes:document.getElementById('recNotes').value};
+  if(recipeId) DB.recipes=DB.recipes.map(r=>r.id===recipeId?recipe:r); else DB.recipes.push(recipe);
+  persistRecipes(); closeModal(); render();
 }
 function deleteRecipe(id){
   if(!confirm('Xóa công thức này?')) return;
-  DB.recipes = DB.recipes.filter(r=>r.id!==id);
-  persistRecipes();
-  render();
+  DB.recipes=DB.recipes.filter(r=>r.id!==id); persistRecipes(); render();
+}
+
+/* ================= EXPENSES (CHI PHÍ) ================= */
+function renderExpensesTab(){
+  const total=DB.expenses.reduce((s,e)=>s+(Number(e.amount)||0),0);
+  return `${sectionHeader('Chi phí','Nhập thủ công và phân loại các khoản chi phí vận hành bán đồ uống',
+    `<button class="btn btn-solid" onclick="openExpenseModal()">＋ Thêm chi phí</button>`)}
+    <div class="stats-row">
+      <div class="stat-card"><div class="stat-label">Tổng chi phí</div><div class="stat-value" style="color:var(--red);">${vnd(total)}</div></div>
+      <div class="stat-card"><div class="stat-label">Số khoản chi</div><div class="stat-value">${DB.expenses.length}</div></div>
+      <div class="stat-card"><div class="stat-label">Chi phí Nguyên liệu</div><div class="stat-value">${vnd(DB.expenses.filter(e=>e.category==='Nguyên liệu').reduce((s,e)=>s+e.amount,0))}</div></div>
+      <div class="stat-card"><div class="stat-label">Chi phí vận hành khác</div><div class="stat-value">${vnd(DB.expenses.filter(e=>e.category!=='Nguyên liệu').reduce((s,e)=>s+e.amount,0))}</div></div>
+    </div>
+    ${DB.expenses.length===0?`<div class="empty-state"><div class="empty-icon">💸</div><div class="empty-title">Chưa có khoản chi phí nào</div><div class="empty-sub">Ví dụ: tiền điện, bao bì, ship, marketing, lương, thuê mặt bằng...</div><div style="margin-top:14px;"><button class="btn btn-solid" onclick="openExpenseModal()">＋ Thêm chi phí</button></div></div>`:
+    DB.expenses.slice().sort((a,b)=>(b.date||'').localeCompare(a.date||'')).map(e=>`<div class="expense-row">
+      <div class="expense-main"><div class="expense-name">${escapeHtml(e.name)}</div><div class="expense-meta">📅 ${fmtDate(e.date)} · <span class="material-chip">${escapeHtml(e.category||'Khác')}</span>${e.branchId?' · '+escapeHtml(branchName(e.branchId)):''}${e.note?' · '+escapeHtml(e.note):''}</div></div>
+      <div class="expense-amount">-${vnd(e.amount)}</div>
+      <div class="mini-actions"><button class="icon-btn" onclick="openExpenseModal('${e.id}')">✎</button><button class="icon-btn" onclick="deleteExpense('${e.id}')">🗑</button></div>
+    </div>`).join('')}
+  `;
+}
+function openExpenseModal(id){
+  const e=id?DB.expenses.find(x=>x.id===id):null;
+  const body=`<form onsubmit="submitExpense(event,'${id||''}')">
+    <div class="field"><span class="field-label">Tên khoản chi</span><input class="input" id="expName" value="${escapeHtml(e?.name||'')}" placeholder="Tiền điện, ly/chai, quảng cáo..."></div>
+    <div class="field-row">
+      <div class="field"><span class="field-label">Số tiền (đ)</span><input class="input" type="number" min="0" id="expAmount" value="${e?.amount||''}"></div>
+      <div class="field"><span class="field-label">Ngày chi</span><input class="input" type="date" id="expDate" value="${e?.date||todayISO()}"></div>
+    </div>
+    <div class="field-row">
+      <div class="field"><span class="field-label">Phân loại</span><select class="input" id="expCategory">${getExpenseCategories().map(c=>`<option value="${escapeHtml(c)}" ${e?.category===c?'selected':''}>${escapeHtml(c)}</option>`).join('')}</select></div>
+      <div class="field"><span class="field-label">Cơ sở</span><select class="input" id="expBranch"><option value="">Tất cả / không gắn cơ sở</option>${DB.branches.map(b=>`<option value="${b.id}" ${e?.branchId===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}</select></div>
+    </div>
+    <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="expNote" placeholder="Thông tin thêm...">${escapeHtml(e?.note||'')}</textarea></div>
+    <div class="form-actions"><button type="submit" class="btn btn-solid">Lưu khoản chi</button><button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button></div>
+  </form>`;
+  openModal(e?'Sửa chi phí':'Thêm chi phí',body);
+}
+function submitExpense(ev,id){
+  ev.preventDefault();
+  const name=document.getElementById('expName').value.trim();
+  const amount=Number(document.getElementById('expAmount').value)||0;
+  if(!name){alert('Vui lòng nhập tên khoản chi.');return;}
+  if(amount<=0){alert('Vui lòng nhập số tiền lớn hơn 0.');return;}
+  const obj={id:id||uid(),name,amount,date:document.getElementById('expDate').value||todayISO(),category:document.getElementById('expCategory').value||'Khác',branchId:document.getElementById('expBranch').value||'',note:document.getElementById('expNote').value};
+  if(id) DB.expenses=DB.expenses.map(e=>e.id===id?obj:e); else DB.expenses.push(obj);
+  persistExpenses(); closeModal(); render();
+}
+function deleteExpense(id){
+  if(!confirm('Xóa khoản chi này?')) return;
+  DB.expenses=DB.expenses.filter(e=>e.id!==id); persistExpenses(); render();
 }
 
 /* ================= BRANCHES (CƠ SỞ) ================= */
