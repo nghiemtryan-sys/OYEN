@@ -534,7 +534,7 @@ function seedMenuSampleData(){
 const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subscribers:[], subscriptionPayments:[], branches:[], rawMaterials:[], expenses:[] };
 let LOADED = false;
 let TAB = 'dashboard';
-let ordersFilter = { mode:'today', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
+let ordersFilter = { mode:'all', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
 let selectedOrderIds = new Set();
 let customersFilter = { search:'' };
 let productsFilter = { search:'' };
@@ -755,7 +755,7 @@ function resolveRange(filter){
   if(filter.mode==='month'){ const d=new Date(); const first=localISODate(new Date(d.getFullYear(), d.getMonth(),1)); return { from:first, to: today }; }
   if(filter.mode==='all'){
     const dates = DB.orders.map(o=>o.deliveryDate).concat(DB.subscriptionPayments.map(p=>p.date)).filter(Boolean).sort();
-    return { from: dates[0] || today, to: today };
+    return { from: dates[0] || today, to: dates[dates.length-1] || today };
   }
   return { from: filter.from||today, to: filter.to||today };
 }
@@ -1545,7 +1545,7 @@ function refreshOrderSubOptions(customerId){
           return `<option value="${s.id}">${escapeHtml(pkg?pkg.name:'Gói')} — còn ${s.remainingQty}/${pkg?pkg.totalQty:s.remainingQty} ${escapeHtml(pkg?.unitLabel||'ly')}</option>`;
         }).join('')}
       </select>
-      <span class="field-hint">Chọn gói để tự điền số lượng, và trừ vào gói khi lưu đơn.</span>
+      <span class="field-hint">Chọn gói để liên kết với đơn. Số lượng mặc định là 1 ly và chỉ trừ đúng số lượng khi lưu đơn.</span>
       ${exhausted.length>0 ? exhausted.map(s=>{
         const pkg = packageOf(s.packageId);
         return `<div class="field-hint" style="color:var(--red);">⚠️ Gói "${escapeHtml(pkg?pkg.name:'Gói')}" của khách đã hết (0${pkg?'/'+pkg.totalQty:''} ${escapeHtml(pkg?.unitLabel||'ly')}) — không thể trừ thêm, hãy làm mới chu kỳ trong mục Gói đăng ký.</div>`;
@@ -1557,8 +1557,9 @@ function applySubSelection(subId){
   const s = subscriberOf(subId);
   if(!s || s.remainingQty<=0){ alert('Gói này đã hết số lượng, không thể dùng cho đơn hàng.'); recomputeOrderTotal(); return; }
   const container = document.getElementById('orderItemsContainer');
-  const qty = Math.max(1, s.remainingQty);
-  container.innerHTML = orderItemRowHtml(DB.products[0]?.id, qty);
+  const rows = container.querySelectorAll('.item-row');
+  if(!rows.length) container.innerHTML = orderItemRowHtml(DB.products[0]?.id, 1);
+  else rows.forEach(row=>{ row.querySelector('.item-qty').value = 1; });
   recomputeOrderTotal();
 }
 function openOrderModal(orderId){
@@ -1786,7 +1787,12 @@ function submitOrder(e, orderId){
     orderPosition: order?.orderPosition ?? nextOrderPosition(),
   };
   if(order) DB.orders = DB.orders.map(o=>o.id===orderId?newOrder:o);
-  else DB.orders.push(newOrder);
+  else {
+    DB.orders.push(newOrder);
+    TAB = 'orders';
+    ordersFilter.mode = 'all';
+    ordersFilter.status = 'all';
+  }
   persistOrders();
   closeModal();
   render();
