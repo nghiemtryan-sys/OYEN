@@ -198,12 +198,27 @@
 
   .order-row{background:var(--panel);border:1px solid var(--line-soft);border-radius:10px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:10px;}
   .order-row:hover{border-color:var(--green-soft);}
+  .order-row.dragging{opacity:.5;border-style:dashed;}
+  .order-row.drag-over{border-color:var(--green);box-shadow:0 0 0 2px rgba(47,111,87,.14);}
+  .drag-handle{border:none;background:transparent;color:var(--ink-faint);font-size:20px;line-height:1;padding:8px 4px;cursor:grab;touch-action:none;user-select:none;}
+  .drag-handle:active{cursor:grabbing;color:var(--green);}
   .order-name{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:6px;}
   .order-sub{font-size:12.5px;color:var(--ink-faint);display:flex;align-items:center;gap:4px;margin-top:2px;}
   .order-items{font-size:13px;color:var(--ink-soft);}
   .order-total{font-weight:700;color:var(--ink);margin-top:3px;}
   .order-time{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;min-width:130px;}
   .status-select{font-weight:600;}
+
+  .product-combobox{position:relative;flex:1;min-width:220px;}
+  .product-combobox input.item-product-search{width:100%;padding-right:34px;}
+  .product-combobox-arrow{position:absolute;right:11px;top:9px;color:var(--ink-faint);pointer-events:none;font-size:12px;}
+  .product-suggestions{display:none;position:absolute;z-index:130;left:0;right:0;top:calc(100% + 4px);max-height:230px;overflow-y:auto;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 28px rgba(20,30,60,.16);padding:5px;}
+  .product-suggestions.open{display:block;}
+  .product-suggestion{display:flex;width:100%;justify-content:space-between;gap:12px;text-align:left;border:none;background:transparent;border-radius:7px;padding:9px 10px;cursor:pointer;color:var(--ink);}
+  .product-suggestion:hover,.product-suggestion:focus{background:var(--panel-alt);outline:none;}
+  .product-suggestion-name{font-size:13.5px;font-weight:700;}
+  .product-suggestion-meta{font-size:12px;color:var(--ink-faint);white-space:nowrap;}
+  .product-suggestion-empty{padding:12px 10px;font-size:12.5px;color:var(--ink-faint);}
 
   .grid-cards{display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:12px;}
   .card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px;cursor:pointer;}
@@ -463,6 +478,9 @@ const MENU_SAMPLE = [
 function normalizedName(value){
   return String(value||'').normalize('NFC').toLowerCase().replace(/\s*[–—-]\s*/g,'-').replace(/\s+/g,' ').trim();
 }
+function searchableText(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/đ/g,'d').replace(/Đ/g,'D').toLowerCase().trim();
+}
 function productVolumeMl(product){
   const value=Number(product?.volumeMl);
   return value>0 ? value : 330;
@@ -519,7 +537,10 @@ let TAB = 'dashboard';
 let ordersFilter = { mode:'today', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
 let selectedOrderIds = new Set();
 let customersFilter = { search:'' };
+let productsFilter = { search:'' };
 let dashFilter = { mode:'today', from: todayISO(), to: todayISO(), branch:'all' };
+let draggedOrderId = '';
+let touchedOrderId = '';
 
 /* Chuyển dữ liệu gói đăng ký kiểu cũ (1 gói = 1 khách) sang mô hình mới:
    1 gói (package) dùng chung cho nhiều khách (subscriber), mỗi khách có số
@@ -549,6 +570,18 @@ function migrateLegacySubs(oldSubs){
 }
 function packageOf(id){ return DB.packages.find(p=>p.id===id); }
 function subscriberOf(id){ return DB.subscribers.find(s=>s.id===id); }
+function migrateOrderPositions(){
+  if(DB.orders.every(order=>Number.isFinite(Number(order.orderPosition)))) return false;
+  const ordered=[...DB.orders].sort((a,b)=>{
+    const aPos=Number(a.orderPosition), bPos=Number(b.orderPosition);
+    const aHas=Number.isFinite(aPos), bHas=Number.isFinite(bPos);
+    if(aHas && bHas && aPos!==bPos) return aPos-bPos;
+    if(aHas!==bHas) return aHas?-1:1;
+    return `${a.deliveryDate||''}${a.deliveryTime||''}${a.createdAt||''}`.localeCompare(`${b.deliveryDate||''}${b.deliveryTime||''}${b.createdAt||''}`);
+  });
+  ordered.forEach((order,index)=>{ order.orderPosition=index; });
+  return true;
+}
 
 async function init(){
   initSupabase();
@@ -594,6 +627,7 @@ async function init(){
     await saveKey('nuts:menu_39_sample_seeded', true);
   }
   migrateProductVolumes();
+  if(migrateOrderPositions()) saveKey('nuts:orders', DB.orders);
   LOADED = true;
   saveKey('nuts:products', DB.products);
   saveKey('nuts:branches', DB.branches);
@@ -826,7 +860,7 @@ function renderMain(){
   else if(TAB==='more') el.innerHTML = renderMoreTab();
   else if(TAB==='subscriptions') el.innerHTML = renderSubscriptionsTab();
   else if(TAB==='branches') el.innerHTML = renderBranchesTab();
-  else if(TAB==='products') el.innerHTML = renderProductsTab();
+  else if(TAB==='products'){ el.innerHTML = renderProductsTab(); refreshProductsList(); }
   else if(TAB==='recipes') el.innerHTML = renderRecipesTab();
   else if(TAB==='expenses') el.innerHTML = renderExpensesTab();
   else if(TAB==='settings') el.innerHTML = renderSettingsTab();
@@ -1138,6 +1172,7 @@ function renderOrdersTab(){
         return `<button class="order-stage-tab ${ordersFilter.status===stage.key?'active':''}" onclick="setOrdersStage('${stage.key}')">${stage.label} (${count})</button>`;
       }).join('')}
     </div>
+    <div class="field-hint" style="margin:-8px 0 14px;">Giữ biểu tượng ⋮⋮ ở đầu mỗi đơn rồi kéo thả để đổi thứ tự ưu tiên.</div>
     <div class="range-row">
       ${['today','week','month','all','custom'].map(m=>`<button class="range-pill ${ordersFilter.mode===m?'active':''}" onclick="setOrdersRange('${m}')">${rangeLabel({mode:m})}</button>`).join('')}
       ${ordersFilter.mode==='custom' ? `<div class="range-dates">
@@ -1165,12 +1200,19 @@ function setOrdersRange(mode){
   selectedOrderIds.clear();
   renderMain();
 }
+function compareOrderPosition(a,b){
+  const aPos=Number(a.orderPosition), bPos=Number(b.orderPosition);
+  if(Number.isFinite(aPos) && Number.isFinite(bPos) && aPos!==bPos) return aPos-bPos;
+  return `${a.deliveryDate||''}${a.deliveryTime||''}${a.createdAt||''}`.localeCompare(`${b.deliveryDate||''}${b.deliveryTime||''}${b.createdAt||''}`);
+}
+function nextOrderPosition(){
+  return DB.orders.reduce((max,order)=>Math.max(max,Number.isFinite(Number(order.orderPosition))?Number(order.orderPosition):-1),-1)+1;
+}
 function refreshOrdersList(){
   refreshPreparationSummary();
   const container = document.getElementById('ordersListContainer');
   if(!container) return;
-  let list = ordersForCurrentFilters()
-    .sort((a,b)=>(a.deliveryDate+a.deliveryTime).localeCompare(b.deliveryDate+b.deliveryTime));
+  let list = ordersForCurrentFilters().sort(compareOrderPosition);
 
   const visibleIds=new Set(list.map(o=>o.id));
   selectedOrderIds=new Set([...selectedOrderIds].filter(id=>visibleIds.has(id)));
@@ -1185,7 +1227,8 @@ function refreshOrdersList(){
     const st = statusOf(o.status);
     const cust = DB.customers.find(c=>c.id===o.customerId);
     const totalQty = o.items.reduce((s,it)=>s+it.qty,0);
-    return `<div class="order-row" style="border-left:4px solid ${st.color};">
+    return `<div class="order-row" data-order-id="${o.id}" style="border-left:4px solid ${st.color};" ondragover="orderDragOver(event,'${o.id}')" ondragleave="orderDragLeave(event)" ondrop="orderDrop(event,'${o.id}')">
+      <button type="button" class="drag-handle" draggable="true" title="Kéo để đổi thứ tự" aria-label="Kéo để đổi thứ tự đơn" ondragstart="orderDragStart(event,'${o.id}')" ondragend="orderDragEnd()" ontouchstart="orderTouchStart(event,'${o.id}')" ontouchmove="orderTouchMove(event)" ontouchend="orderTouchEnd(event)">⋮⋮</button>
       <label class="order-check" title="Chọn đơn"><input type="checkbox" ${selectedOrderIds.has(o.id)?'checked':''} onchange="toggleOrderSelection('${o.id}',this.checked)"></label>
       <div style="min-width:180px;flex:1 1 180px;">
         <div class="order-name">${escapeHtml(o.customerName)} ${cust&&cust.vip?'⭐':''}</div>
@@ -1213,6 +1256,69 @@ function refreshOrdersList(){
       </div>
     </div>`;
   }).join('');
+}
+function clearOrderDragStyles(){
+  document.querySelectorAll('.order-row.dragging,.order-row.drag-over').forEach(row=>row.classList.remove('dragging','drag-over'));
+}
+function orderDragStart(event,id){
+  draggedOrderId=id;
+  event.dataTransfer.effectAllowed='move';
+  event.dataTransfer.setData('text/plain',id);
+  setTimeout(()=>event.target.closest('.order-row')?.classList.add('dragging'),0);
+}
+function orderDragOver(event,targetId){
+  event.preventDefault();
+  if(!draggedOrderId || draggedOrderId===targetId) return;
+  document.querySelectorAll('.order-row.drag-over').forEach(row=>row.classList.remove('drag-over'));
+  event.currentTarget.classList.add('drag-over');
+  event.dataTransfer.dropEffect='move';
+}
+function orderDragLeave(event){
+  if(!event.currentTarget.contains(event.relatedTarget)) event.currentTarget.classList.remove('drag-over');
+}
+function orderDrop(event,targetId){
+  event.preventDefault();
+  const sourceId=draggedOrderId || event.dataTransfer.getData('text/plain');
+  reorderOrders(sourceId,targetId);
+}
+function orderDragEnd(){
+  draggedOrderId='';
+  clearOrderDragStyles();
+}
+function reorderOrders(sourceId,targetId){
+  if(!sourceId || !targetId || sourceId===targetId) return;
+  const ordered=[...DB.orders].sort(compareOrderPosition);
+  const fromIndex=ordered.findIndex(order=>order.id===sourceId);
+  if(fromIndex<0) return;
+  const [moved]=ordered.splice(fromIndex,1);
+  const targetIndex=ordered.findIndex(order=>order.id===targetId);
+  if(targetIndex<0) return;
+  ordered.splice(targetIndex,0,moved);
+  ordered.forEach((order,index)=>{ order.orderPosition=index; });
+  DB.orders=ordered;
+  draggedOrderId='';
+  touchedOrderId='';
+  persistOrders();
+  refreshOrdersList();
+}
+function orderTouchStart(event,id){
+  touchedOrderId=id;
+  event.currentTarget.closest('.order-row')?.classList.add('dragging');
+}
+function orderTouchMove(event){
+  if(!touchedOrderId || !event.touches[0]) return;
+  event.preventDefault();
+  const touch=event.touches[0];
+  const row=document.elementFromPoint(touch.clientX,touch.clientY)?.closest('.order-row');
+  document.querySelectorAll('.order-row.drag-over').forEach(item=>item.classList.remove('drag-over'));
+  if(row && row.dataset.orderId!==touchedOrderId) row.classList.add('drag-over');
+}
+function orderTouchEnd(event){
+  const target=document.querySelector('.order-row.drag-over');
+  const sourceId=touchedOrderId;
+  clearOrderDragStyles();
+  if(target) reorderOrders(sourceId,target.dataset.orderId);
+  else touchedOrderId='';
 }
 function renderOrderBulkBar(list){
   const bar=document.getElementById('orderBulkBar');
@@ -1299,13 +1405,69 @@ function deleteOrder(id){
 
 function orderItemRowHtml(productId, qty){
   const pid = productId || (DB.products[0] && DB.products[0].id) || '';
+  const product=DB.products.find(p=>p.id===pid);
   return `<div class="item-row">
-    <select class="input item-product" onchange="recomputeOrderTotal()">
-      ${DB.products.map(p=>`<option value="${p.id}" ${p.id===pid?'selected':''}>${escapeHtml(p.name)} — ${vnd(p.price)}</option>`).join('')}
-    </select>
+    <div class="product-combobox">
+      <input class="input item-product-search" autocomplete="off" value="${escapeHtml(product?.name||'')}" placeholder="Gõ tên sản phẩm để tìm..." onfocus="showOrderProductSuggestions(this)" oninput="filterOrderProductSuggestions(this)" onkeydown="orderProductSearchKeydown(event,this)" onblur="hideOrderProductSuggestions(this)">
+      <input type="hidden" class="item-product" value="${pid}">
+      <span class="product-combobox-arrow">▼</span>
+      <div class="product-suggestions">${orderProductSuggestionOptions('')}</div>
+    </div>
     <input type="number" class="input item-qty" min="1" value="${qty||1}" oninput="recomputeOrderTotal()">
     <button type="button" class="row-remove" onclick="this.closest('.item-row').remove();recomputeOrderTotal()">✕</button>
   </div>`;
+}
+function matchingProducts(query){
+  const key=searchableText(query);
+  return DB.products.filter(product=>!key || searchableText(`${product.name} ${product.category||''}`).includes(key)).slice(0,12);
+}
+function orderProductSuggestionOptions(query){
+  const products=matchingProducts(query);
+  if(!products.length) return `<div class="product-suggestion-empty">Không tìm thấy sản phẩm phù hợp.</div>`;
+  return products.map(product=>`<button type="button" class="product-suggestion" onmousedown="event.preventDefault()" onclick="chooseOrderProduct(this,'${product.id}')">
+    <span class="product-suggestion-name">${escapeHtml(product.name)}</span>
+    <span class="product-suggestion-meta">${vnd(product.price)}</span>
+  </button>`).join('');
+}
+function showOrderProductSuggestions(input){
+  const box=input.closest('.product-combobox').querySelector('.product-suggestions');
+  box.innerHTML=orderProductSuggestionOptions(input.value);
+  box.classList.add('open');
+}
+function filterOrderProductSuggestions(input){
+  const row=input.closest('.item-row');
+  const exact=DB.products.find(product=>searchableText(product.name)===searchableText(input.value));
+  row.querySelector('.item-product').value=exact?.id||'';
+  showOrderProductSuggestions(input);
+  recomputeOrderTotal();
+}
+function hideOrderProductSuggestions(input){
+  setTimeout(()=>{
+    const combo=input.closest('.product-combobox');
+    if(combo && !combo.contains(document.activeElement)) combo.querySelector('.product-suggestions')?.classList.remove('open');
+  },150);
+}
+function chooseOrderProduct(button,productId){
+  const product=DB.products.find(item=>item.id===productId);
+  const row=button.closest('.item-row');
+  if(!product || !row) return;
+  row.querySelector('.item-product-search').value=product.name;
+  row.querySelector('.item-product').value=product.id;
+  row.querySelector('.product-suggestions').classList.remove('open');
+  recomputeOrderTotal();
+}
+function orderProductSearchKeydown(event,input){
+  const box=input.closest('.product-combobox').querySelector('.product-suggestions');
+  if(event.key==='Escape'){ box.classList.remove('open'); return; }
+  if(event.key==='ArrowDown'){
+    event.preventDefault();
+    if(!box.classList.contains('open')) showOrderProductSuggestions(input);
+    box.querySelector('.product-suggestion')?.focus();
+  }
+  if(event.key==='Enter' && box.classList.contains('open')){
+    const first=box.querySelector('.product-suggestion');
+    if(first){ event.preventDefault(); first.click(); }
+  }
 }
 function addOrderItemRow(){
   document.getElementById('orderItemsContainer').insertAdjacentHTML('beforeend', orderItemRowHtml());
@@ -1564,12 +1726,15 @@ function submitOrder(e, orderId){
 
   const rows = document.querySelectorAll('#orderItemsContainer .item-row');
   const items = [];
+  let hasInvalidProduct = false;
   rows.forEach(r=>{
     const pid = r.querySelector('.item-product').value;
     const qty = Number(r.querySelector('.item-qty').value)||1;
     const p = DB.products.find(x=>x.id===pid);
     if(p) items.push({ productId:pid, name:p.name, price:p.price, volumeMl:productVolumeMl(p), qty });
+    else hasInvalidProduct = true;
   });
+  if(hasInvalidProduct){ alert('Có sản phẩm chưa được chọn đúng từ danh sách gợi ý. Vui lòng chọn lại sản phẩm.'); return; }
   if(items.length===0){ alert('Vui lòng thêm ít nhất 1 sản phẩm.'); return; }
   const totalQty = items.reduce((s,it)=>s+it.qty,0);
 
@@ -1618,6 +1783,7 @@ function submitOrder(e, orderId){
     status: document.getElementById('orderStatus').value,
     note: document.getElementById('orderNote').value,
     createdAt: order?.createdAt || new Date().toISOString(),
+    orderPosition: order?.orderPosition ?? nextOrderPosition(),
   };
   if(order) DB.orders = DB.orders.map(o=>o.id===orderId?newOrder:o);
   else DB.orders.push(newOrder);
@@ -2015,9 +2181,27 @@ function renderProductsTab(){
   return `
     ${sectionHeader('Sản phẩm', 'Danh mục các loại sữa hạt đang bán',
       `<button class="btn btn-solid" onclick="openProductModal()">＋ Thêm sản phẩm</button>`)}
-    ${DB.products.length===0 ? `<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Chưa có sản phẩm nào</div>
-      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openProductModal()">＋ Thêm sản phẩm</button></div></div>` :
-      `<div class="grid-cards">${DB.products.map(p=>`
+    <div class="search-wrap" style="max-width:380px;margin-bottom:18px;"><span class="search-icon">🔍</span>
+      <input class="input" placeholder="Tìm theo tên, danh mục hoặc mô tả..." value="${escapeHtml(productsFilter.search)}" oninput="productsFilter.search=this.value;refreshProductsList()">
+    </div>
+    <div id="productsListContainer"></div>
+  `;
+}
+function refreshProductsList(){
+  const container=document.getElementById('productsListContainer');
+  if(!container) return;
+  const query=searchableText(productsFilter.search);
+  const products=DB.products.filter(product=>!query || searchableText(`${product.name} ${product.category||''} ${product.desc||''}`).includes(query));
+  if(!DB.products.length){
+    container.innerHTML=`<div class="empty-state"><div class="empty-icon">📦</div><div class="empty-title">Chưa có sản phẩm nào</div>
+      <div style="margin-top:14px;"><button class="btn btn-solid" onclick="openProductModal()">＋ Thêm sản phẩm</button></div></div>`;
+    return;
+  }
+  if(!products.length){
+    container.innerHTML=`<div class="empty-state"><div class="empty-icon">🔍</div><div class="empty-title">Không tìm thấy sản phẩm</div><div class="empty-sub">Thử nhập từ khóa ngắn hơn hoặc tên nguyên liệu.</div></div>`;
+    return;
+  }
+  container.innerHTML=`<div class="grid-cards">${products.map(p=>`
         <div class="card card-nohover">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;">
             <div style="font-weight:700;font-size:15px;">${escapeHtml(p.name)}</div>
@@ -2033,9 +2217,7 @@ function renderProductsTab(){
             <span style="font-size:12px;color:var(--ink-faint);">${escapeHtml(p.unit)} · ${productVolumeMl(p).toLocaleString('vi-VN')}ml</span>
           </div>
         </div>
-      `).join('')}</div>`
-    }
-  `;
+      `).join('')}</div>`;
 }
 function openProductModal(productId){
   const p = productId ? DB.products.find(x=>x.id===productId) : null;
