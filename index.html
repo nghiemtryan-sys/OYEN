@@ -53,6 +53,20 @@
   .range-extra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
   .range-extra button{border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:20px;cursor:pointer;}
   .range-extra button.active{background:var(--green);border-color:var(--green);color:#fff;}
+  .order-stage-tabs{display:flex;gap:8px;overflow-x:auto;margin:0 0 16px;padding-bottom:2px;scrollbar-width:thin;}
+  .order-stage-tab{border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .order-stage-tab.active{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 4px 12px rgba(47,111,87,.18);}
+  .order-check{display:flex;align-items:center;justify-content:center;padding:6px;cursor:pointer;}
+  .order-check input,.bulk-select input{width:17px;height:17px;accent-color:var(--green);cursor:pointer;}
+  .bulk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-alt);border:1px solid var(--line-soft);border-radius:12px;padding:10px 12px;margin-bottom:12px;}
+  .bulk-select{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
+  .bulk-count{font-size:13px;color:var(--ink-soft);margin-right:auto;}
+  .order-workflow-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+  .more-card{display:flex;align-items:center;gap:14px;text-align:left;width:100%;background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;padding:18px;cursor:pointer;color:var(--ink);}
+  .more-card:hover{border-color:var(--green-soft);background:var(--panel-alt);}
+  .more-card-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--icon-green);flex:0 0 auto;}
+  .more-card-title{font-size:15px;font-weight:800;}
+  .more-card-sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
 
   .hero-card{background:linear-gradient(135deg,var(--grad-start),var(--grad-end));border-radius:16px;padding:20px 22px;color:#fff;margin-bottom:16px;box-shadow:0 10px 26px rgba(47,111,237,0.28);}
   .hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
@@ -303,13 +317,20 @@
 <script>
 /* ================= CONSTANTS & HELPERS ================= */
 const STATUS = [
-  { key:'cho_xac_nhan', label:'Chờ xác nhận', color:'#9A8355' },
+  { key:'cho_xac_nhan', label:'Chờ duyệt', color:'#9A8355' },
   { key:'da_xac_nhan', label:'Đã xác nhận', color:'#3B6D8C' },
   { key:'dang_chuan_bi', label:'Đang chuẩn bị', color:'#7C5C9E' },
-  { key:'dang_giao', label:'Đang giao', color:'#B5852B' },
-  { key:'hoan_thanh', label:'Hoàn thành', color:'#3D7A4E' },
+  { key:'dang_giao', label:'Đang vận chuyển', color:'#B5852B' },
+  { key:'hoan_thanh', label:'Đã vận chuyển', color:'#3D7A4E' },
   { key:'da_huy', label:'Đã hủy', color:'#B14A38' },
 ];
+const ORDER_STAGE_TABS = [
+  { key:'all', label:'Tất cả' },
+  { key:'cho_duyet', label:'Chờ duyệt' },
+  { key:'cho_van_chuyen', label:'Chờ vận chuyển' },
+  { key:'da_van_chuyen', label:'Đã vận chuyển' },
+];
+const MORE_TABS = ['branches','recipes','subscriptions','expenses'];
 const SUB_STATUS = [
   { key:'dang_hoat_dong', label:'Đang hoạt động', color:'#3D7A4E' },
   { key:'tam_dung', label:'Tạm dừng', color:'#9A8355' },
@@ -320,11 +341,8 @@ const NAV = [
   {key:'dashboard', label:'Tổng quan', icon:'📊'},
   {key:'orders', label:'Đơn hàng', icon:'🧾'},
   {key:'customers', label:'Khách hàng', icon:'👥'},
-  {key:'subscriptions', label:'Gói đăng ký', icon:'🔁'},
-  {key:'branches', label:'Cơ sở', icon:'🏬'},
   {key:'products', label:'Sản phẩm', icon:'📦'},
-  {key:'recipes', label:'Công thức', icon:'📖'},
-  {key:'expenses', label:'Chi phí', icon:'💸'},
+  {key:'more', label:'Thêm', icon:'＋'},
   {key:'settings', label:'Đồng bộ dữ liệu', icon:'⚙️'},
 ];
 /* ================= SUPABASE SYNC ================= */
@@ -499,6 +517,7 @@ const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subs
 let LOADED = false;
 let TAB = 'dashboard';
 let ordersFilter = { mode:'today', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
+let selectedOrderIds = new Set();
 let customersFilter = { search:'' };
 let dashFilter = { mode:'today', from: todayISO(), to: todayISO(), branch:'all' };
 
@@ -784,31 +803,49 @@ function render(){
           <div><div class="brand-name">OYEN</div><div class="brand-sub">Sữa hạt nhà làm</div></div>
         </div>
         <nav class="navlist">
-          ${NAV.map(n=>`<button class="navitem ${TAB===n.key?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
+          ${NAV.map(n=>`<button class="navitem ${navIsActive(n.key)?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
         </nav>
       </aside>
       <main class="main" id="mainContent"></main>
     </div>
     <div class="mobilenav">
-      ${NAV.map(n=>`<button class="${TAB===n.key?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
+      ${NAV.map(n=>`<button class="${navIsActive(n.key)?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
     </div>
     <button class="fab" onclick="openQuickOrderModal()" title="Tạo đơn nhanh">＋</button>
   `;
   renderMain();
 }
 function setTab(key){ TAB = key; render(); }
+function navIsActive(key){ return TAB===key || (key==='more' && MORE_TABS.includes(TAB)); }
 
 function renderMain(){
   const el = document.getElementById('mainContent');
   if(TAB==='dashboard') el.innerHTML = renderDashboard();
   else if(TAB==='orders'){ el.innerHTML = renderOrdersTab(); refreshOrdersList(); }
   else if(TAB==='customers'){ el.innerHTML = renderCustomersTab(); refreshCustomersList(); }
+  else if(TAB==='more') el.innerHTML = renderMoreTab();
   else if(TAB==='subscriptions') el.innerHTML = renderSubscriptionsTab();
   else if(TAB==='branches') el.innerHTML = renderBranchesTab();
   else if(TAB==='products') el.innerHTML = renderProductsTab();
   else if(TAB==='recipes') el.innerHTML = renderRecipesTab();
   else if(TAB==='expenses') el.innerHTML = renderExpensesTab();
   else if(TAB==='settings') el.innerHTML = renderSettingsTab();
+}
+
+function renderMoreTab(){
+  const items = [
+    {key:'branches', icon:'🏬', title:'Cơ sở', sub:'Quản lý địa điểm và chi nhánh'},
+    {key:'recipes', icon:'📖', title:'Công thức', sub:'Định lượng và giá cost từng sản phẩm'},
+    {key:'subscriptions', icon:'🔁', title:'Gói đăng ký', sub:'Quản lý gói và lượt dùng của khách'},
+    {key:'expenses', icon:'💸', title:'Chi phí', sub:'Theo dõi các khoản chi của cửa hàng'},
+  ];
+  return `${sectionHeader('Thêm', 'Các chức năng quản lý bổ sung')}
+    <div class="grid-cards">
+      ${items.map(item=>`<button class="more-card" onclick="setTab('${item.key}')">
+        <span class="more-card-icon">${item.icon}</span>
+        <span><span class="more-card-title">${item.title}</span><span class="more-card-sub" style="display:block;">${item.sub}</span></span>
+      </button>`).join('')}
+    </div>`;
 }
 
 function sectionHeader(title, sub, actionHtml){
@@ -971,19 +1008,18 @@ function renderDashboard(){
     <div class="quick-actions">
       <button class="qa-item" onclick="openOrderModal()"><span class="qa-icon" style="background:var(--icon-green);">🛒</span><span class="qa-label">Tạo đơn hàng</span></button>
       <button class="qa-item" onclick="setTab('customers')"><span class="qa-icon" style="background:var(--icon-blue);">👥</span><span class="qa-label">Khách hàng</span></button>
-      <button class="qa-item" onclick="setTab('subscriptions')"><span class="qa-icon" style="background:var(--icon-gold);">🔁</span><span class="qa-label">Gói đăng ký</span></button>
       <button class="qa-item" onclick="setTab('products')"><span class="qa-icon" style="background:var(--icon-red);">📦</span><span class="qa-label">Sản phẩm</span></button>
-      <button class="qa-item" onclick="setTab('expenses')"><span class="qa-icon" style="background:var(--icon-gold);">💸</span><span class="qa-label">Chi phí</span></button>
+      <button class="qa-item" onclick="setTab('more')"><span class="qa-icon" style="background:var(--icon-gold);">＋</span><span class="qa-label">Thêm</span></button>
     </div>
 
     <div class="panel-title" style="font-size:16px;margin-bottom:12px;">Đơn hàng chờ xử lý</div>
     <div class="pending-row">
-      <button class="pending-chip" onclick="ordersFilter.status='cho_xac_nhan';ordersFilter.mode='all';setTab('orders')">
-        <div><div class="pending-chip-label">Chờ xác nhận</div><div class="pending-chip-value">${pendingConfirm}</div></div>
+      <button class="pending-chip" onclick="ordersFilter.status='cho_duyet';ordersFilter.mode='all';setTab('orders')">
+        <div><div class="pending-chip-label">Chờ duyệt</div><div class="pending-chip-value">${pendingConfirm}</div></div>
         <span class="pending-chip-arrow">›</span>
       </button>
-      <button class="pending-chip" onclick="ordersFilter.status='all';ordersFilter.mode='all';setTab('orders')">
-        <div><div class="pending-chip-label">Chưa giao hàng</div><div class="pending-chip-value">${notDelivered}</div></div>
+      <button class="pending-chip" onclick="ordersFilter.status='cho_van_chuyen';ordersFilter.mode='all';setTab('orders')">
+        <div><div class="pending-chip-label">Chờ vận chuyển</div><div class="pending-chip-value">${notDelivered}</div></div>
         <span class="pending-chip-arrow">›</span>
       </button>
     </div>
@@ -1024,12 +1060,29 @@ function setDashRange(mode){
 }
 
 /* ================= ORDERS ================= */
-function preparationRows(){
+function orderMatchesStage(order, stage){
+  if(stage==='all') return true;
+  if(stage==='cho_duyet') return order.status==='cho_xac_nhan';
+  if(stage==='cho_van_chuyen') return ['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(order.status);
+  if(stage==='da_van_chuyen') return order.status==='hoan_thanh';
+  return true;
+}
+function ordersForCurrentFilters(includeStage=true,includeSearch=true){
   const range=resolveRange(ordersFilter);
-  const orders=DB.orders
+  const query=(ordersFilter.search||'').toLowerCase();
+  return DB.orders
     .filter(o=>o.deliveryDate>=range.from && o.deliveryDate<=range.to)
     .filter(o=>ordersFilter.branch==='all' || o.branchId===ordersFilter.branch)
-    .filter(o=>ordersFilter.status==='all' || o.status===ordersFilter.status)
+    .filter(o=>!includeStage || orderMatchesStage(o,ordersFilter.status))
+    .filter(o=>!includeSearch || !query || (o.customerName||'').toLowerCase().includes(query) || (o.phone||'').includes(query));
+}
+function setOrdersStage(stage){
+  ordersFilter.status=stage;
+  selectedOrderIds.clear();
+  renderMain();
+}
+function preparationRows(){
+  const orders=ordersForCurrentFilters()
     .filter(o=>o.status!=='da_huy' && o.status!=='hoan_thanh');
   const grouped=new Map();
   orders.forEach(order=>(order.items||[]).forEach(item=>{
@@ -1079,45 +1132,49 @@ function renderOrdersTab(){
   return `
     ${sectionHeader('Đơn hàng', 'Theo dõi và cập nhật đơn hàng cần lên & cần giao mỗi ngày',
       `<button class="btn btn-solid" onclick="openOrderModal()">＋ Tạo đơn mới</button>`)}
+    <div class="order-stage-tabs">
+      ${ORDER_STAGE_TABS.map(stage=>{
+        const count=ordersForCurrentFilters(false,false).filter(o=>orderMatchesStage(o,stage.key)).length;
+        return `<button class="order-stage-tab ${ordersFilter.status===stage.key?'active':''}" onclick="setOrdersStage('${stage.key}')">${stage.label} (${count})</button>`;
+      }).join('')}
+    </div>
     <div class="range-row">
       ${['today','week','month','all','custom'].map(m=>`<button class="range-pill ${ordersFilter.mode===m?'active':''}" onclick="setOrdersRange('${m}')">${rangeLabel({mode:m})}</button>`).join('')}
       ${ordersFilter.mode==='custom' ? `<div class="range-dates">
-        <input class="input" type="date" style="width:145px;" value="${ordersFilter.from}" onchange="ordersFilter.from=this.value;refreshOrdersList()">
+        <input class="input" type="date" style="width:145px;" value="${ordersFilter.from}" onchange="ordersFilter.from=this.value;selectedOrderIds.clear();renderMain()">
         <span style="color:var(--ink-faint);">→</span>
-        <input class="input" type="date" style="width:145px;" value="${ordersFilter.to}" onchange="ordersFilter.to=this.value;refreshOrdersList()">
+        <input class="input" type="date" style="width:145px;" value="${ordersFilter.to}" onchange="ordersFilter.to=this.value;selectedOrderIds.clear();renderMain()">
       </div>` : ''}
       <span style="font-size:12.5px;color:var(--ink-soft);margin-left:auto;">${rangeOrders.length} đơn · <strong style="color:var(--green)">${vnd(rangeRevenue)}</strong></span>
     </div>
     <div class="filters-row">
-      <select class="input" id="fltStatus" style="width:170px;" onchange="ordersFilter.status=this.value;refreshOrdersList()">
-        <option value="all">Tất cả trạng thái</option>
-        ${STATUS.map(s=>`<option value="${s.key}" ${ordersFilter.status===s.key?'selected':''}>${s.label}</option>`).join('')}
-      </select>
-      ${DB.branches.length>1 ? `<select class="input" id="fltBranch" style="width:170px;" onchange="ordersFilter.branch=this.value;refreshOrdersList()">
+      ${DB.branches.length>1 ? `<select class="input" id="fltBranch" style="width:170px;" onchange="ordersFilter.branch=this.value;selectedOrderIds.clear();renderMain()">
         <option value="all" ${ordersFilter.branch==='all'?'selected':''}>Tất cả cơ sở</option>
         ${DB.branches.map(b=>`<option value="${b.id}" ${ordersFilter.branch===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}
       </select>` : ''}
       <div class="search-wrap"><span class="search-icon">🔍</span><input class="input" id="fltSearch" placeholder="Tìm theo tên / SĐT khách..." value="${escapeHtml(ordersFilter.search)}" oninput="ordersFilter.search=this.value;refreshOrdersList()"></div>
     </div>
     <div id="preparationSummaryContainer">${renderPreparationSummary()}</div>
+    <div id="orderBulkBar"></div>
     <div id="ordersListContainer"></div>
   `;
 }
 function setOrdersRange(mode){
   ordersFilter.mode = mode;
   if(mode==='custom' && (!ordersFilter.from)){ ordersFilter.from = todayISO(); ordersFilter.to = todayISO(); }
+  selectedOrderIds.clear();
   renderMain();
 }
 function refreshOrdersList(){
   refreshPreparationSummary();
   const container = document.getElementById('ordersListContainer');
   if(!container) return;
-  const range = resolveRange(ordersFilter);
-  let list = DB.orders.filter(o => o.deliveryDate>=range.from && o.deliveryDate<=range.to)
-    .filter(o => ordersFilter.branch==='all' || o.branchId===ordersFilter.branch)
-    .filter(o => ordersFilter.status==='all' || o.status===ordersFilter.status)
-    .filter(o => !ordersFilter.search || o.customerName.toLowerCase().includes(ordersFilter.search.toLowerCase()) || (o.phone||'').includes(ordersFilter.search))
+  let list = ordersForCurrentFilters()
     .sort((a,b)=>(a.deliveryDate+a.deliveryTime).localeCompare(b.deliveryDate+b.deliveryTime));
+
+  const visibleIds=new Set(list.map(o=>o.id));
+  selectedOrderIds=new Set([...selectedOrderIds].filter(id=>visibleIds.has(id)));
+  renderOrderBulkBar(list);
 
   if(list.length===0){
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Chưa có đơn hàng nào</div><div class="empty-sub">Tạo đơn đầu tiên để bắt đầu theo dõi giao hàng.</div>
@@ -1129,6 +1186,7 @@ function refreshOrdersList(){
     const cust = DB.customers.find(c=>c.id===o.customerId);
     const totalQty = o.items.reduce((s,it)=>s+it.qty,0);
     return `<div class="order-row" style="border-left:4px solid ${st.color};">
+      <label class="order-check" title="Chọn đơn"><input type="checkbox" ${selectedOrderIds.has(o.id)?'checked':''} onchange="toggleOrderSelection('${o.id}',this.checked)"></label>
       <div style="min-width:180px;flex:1 1 180px;">
         <div class="order-name">${escapeHtml(o.customerName)} ${cust&&cust.vip?'⭐':''}</div>
         ${o.orderType==='tai_cho'
@@ -1142,15 +1200,69 @@ function refreshOrdersList(){
         ${o.subscriberId ? `<div class="order-total" style="color:var(--blue);">🔁 Trừ ${totalQty} từ gói đăng ký</div>` : `<div class="order-total">${vnd(o.total)}</div>`}
       </div>
       <div class="order-time">⏰ ${fmtDate(o.deliveryDate)} ${o.deliveryTime?`· ${o.deliveryTime}`:''}</div>
-      <select class="input status-select" style="width:155px;color:${st.color};border-color:${st.color}55;" onchange="changeOrderStatus('${o.id}', this.value)">
-        ${STATUS.map(s=>`<option value="${s.key}" ${o.status===s.key?'selected':''}>${s.label}</option>`).join('')}
-      </select>
+      <div class="order-workflow-actions">
+        ${o.status==='cho_xac_nhan'
+          ? `<button class="btn btn-solid" style="padding:7px 10px;font-size:12.5px;" onclick="arrangeOrderShipping('${o.id}')">Sắp xếp vận chuyển</button>`
+          : ['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(o.status)
+            ? `<button class="btn btn-ghost" style="padding:7px 10px;font-size:12.5px;" onclick="markOrderDelivered('${o.id}')">✓ Đã vận chuyển</button>`
+            : `<span class="badge" style="color:${st.color};background:${st.color}1A;">${st.label}</span>`}
+      </div>
       <div style="display:flex;gap:2px;">
         <button class="icon-btn" onclick="openOrderModal('${o.id}')" title="Sửa">✎</button>
         <button class="icon-btn" onclick="deleteOrder('${o.id}')" title="Xóa">🗑</button>
       </div>
     </div>`;
   }).join('');
+}
+function renderOrderBulkBar(list){
+  const bar=document.getElementById('orderBulkBar');
+  if(!bar) return;
+  const selected=[...selectedOrderIds];
+  const allSelected=list.length>0 && list.every(o=>selectedOrderIds.has(o.id));
+  const canArrange=ordersFilter.status==='all' || ordersFilter.status==='cho_duyet';
+  const canComplete=ordersFilter.status==='all' || ordersFilter.status==='cho_van_chuyen';
+  bar.innerHTML=`<div class="bulk-bar">
+    <label class="bulk-select"><input type="checkbox" ${allSelected?'checked':''} onchange="toggleAllVisibleOrders(this.checked)"> Chọn tất cả</label>
+    <span class="bulk-count">Đã chọn <strong>${selected.length}</strong> đơn</span>
+    ${canArrange?`<button class="btn btn-solid" ${selected.length?'':'disabled'} onclick="bulkUpdateOrderStatus('dang_giao')">Sắp xếp vận chuyển</button>`:''}
+    ${canComplete?`<button class="btn btn-ghost" ${selected.length?'':'disabled'} onclick="bulkUpdateOrderStatus('hoan_thanh')">✓ Đã vận chuyển</button>`:''}
+    <button class="btn btn-danger" ${selected.length?'':'disabled'} onclick="bulkDeleteOrders()">Xóa</button>
+  </div>`;
+}
+function toggleOrderSelection(id,checked){
+  if(checked) selectedOrderIds.add(id); else selectedOrderIds.delete(id);
+  refreshOrdersList();
+}
+function toggleAllVisibleOrders(checked){
+  ordersForCurrentFilters().forEach(o=>checked?selectedOrderIds.add(o.id):selectedOrderIds.delete(o.id));
+  refreshOrdersList();
+}
+function arrangeOrderShipping(id){ changeOrderStatus(id,'dang_giao'); }
+function markOrderDelivered(id){ changeOrderStatus(id,'hoan_thanh'); }
+function bulkUpdateOrderStatus(status){
+  if(!selectedOrderIds.size) return;
+  DB.orders.forEach(order=>{
+    if(!selectedOrderIds.has(order.id)) return;
+    if(status==='dang_giao' && order.status!=='cho_xac_nhan') return;
+    if(status==='hoan_thanh' && !['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(order.status)) return;
+    order.status=status;
+  });
+  selectedOrderIds.clear();
+  persistOrders();
+  renderMain();
+}
+function bulkDeleteOrders(){
+  if(!selectedOrderIds.size || !confirm(`Xóa ${selectedOrderIds.size} đơn hàng đã chọn?`)) return;
+  DB.orders.filter(o=>selectedOrderIds.has(o.id)).forEach(o=>{
+    if(o.subscriberId && !o.subRestored){
+      const qty=o.items.reduce((sum,item)=>sum+item.qty,0);
+      restoreSubscriberQty(o.subscriberId,qty);
+    }
+  });
+  DB.orders=DB.orders.filter(o=>!selectedOrderIds.has(o.id));
+  selectedOrderIds.clear();
+  persistOrders();
+  renderMain();
 }
 function restoreSubscriberQty(subscriberId, qty){
   const s = subscriberOf(subscriberId);
@@ -1167,8 +1279,10 @@ function changeOrderStatus(id, status){
     restoreSubscriberQty(o.subscriberId, qty);
     o.subRestored = true;
   }
-  o.status = status; persistOrders(); refreshOrdersList();
-  if(TAB==='dashboard') renderMain();
+  o.status = status;
+  selectedOrderIds.delete(id);
+  persistOrders();
+  if(TAB==='orders' || TAB==='dashboard') renderMain(); else refreshOrdersList();
 }
 function deleteOrder(id){
   if(!confirm('Xóa đơn hàng này?')) return;
@@ -1177,7 +1291,10 @@ function deleteOrder(id){
     const qty = o.items.reduce((s,it)=>s+it.qty,0);
     restoreSubscriberQty(o.subscriberId, qty);
   }
-  DB.orders = DB.orders.filter(o=>o.id!==id); persistOrders(); refreshOrdersList();
+  DB.orders = DB.orders.filter(o=>o.id!==id);
+  selectedOrderIds.delete(id);
+  persistOrders();
+  if(TAB==='orders') renderMain(); else refreshOrdersList();
 }
 
 function orderItemRowHtml(productId, qty){
@@ -1326,7 +1443,8 @@ function openOrderModal(orderId){
       <div class="field-row">
         <div class="field" id="orderPhoneField"><span class="field-label">Số điện thoại</span><input class="input" id="orderPhone" value="${escapeHtml(order?.phone||'')}" placeholder="09xxxxxxxx"></div>
         <div class="field"><span class="field-label">Trạng thái giao</span>
-          <select class="input" id="orderStatus">${STATUS.map(s=>`<option value="${s.key}" ${(order?.status||'cho_xac_nhan')===s.key?'selected':''}>${s.label}</option>`).join('')}</select>
+          <input class="input" value="${escapeHtml(statusOf(order?.status||'cho_xac_nhan').label)}" disabled>
+          <input type="hidden" id="orderStatus" value="${order?.status||'cho_xac_nhan'}">
         </div>
       </div>
       <div class="field-row">
