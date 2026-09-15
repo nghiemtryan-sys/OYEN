@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>OYEN — Quản lý đơn hàng</title>
+<title>OYEN — Quản lý đơn hàng & công nợ</title>
 <style>
   :root{
     --bg:#F3F6FC; --panel:#FFFFFF; --panel-alt:#EAF1FE;
@@ -67,6 +67,33 @@
   .more-card-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--icon-green);flex:0 0 auto;}
   .more-card-title{font-size:15px;font-weight:800;}
   .more-card-sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+
+  .auth-page{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#f5f0e8,#eef5ef);}
+  .auth-card{width:min(460px,100%);background:#fff;border:1px solid var(--line-soft);border-radius:20px;padding:28px;box-shadow:0 18px 45px rgba(35,55,45,.13);}
+  .auth-logo{width:58px;height:58px;border-radius:17px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:28px;font-weight:900;margin-bottom:16px;}
+  .auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--panel-alt);padding:4px;border-radius:11px;margin:18px 0;}
+  .auth-tabs button{border:0;background:transparent;padding:9px;border-radius:8px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
+  .auth-tabs button.active{background:#fff;color:var(--green);box-shadow:0 1px 5px rgba(20,30,60,.12);}
+  .auth-message{font-size:12.5px;margin:10px 0;color:var(--red);min-height:18px;}
+  .user-chip{display:flex;align-items:center;gap:8px;margin-top:auto;padding:12px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--ink-soft);}
+  .customer-app{min-height:100vh;background:#f7f5ef;padding-bottom:82px;}
+  .customer-header{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--line-soft);padding:12px max(16px,calc((100vw - 980px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .customer-brand{font-size:20px;font-weight:900;color:var(--green);letter-spacing:1px;}
+  .customer-content{width:min(980px,calc(100% - 28px));margin:20px auto;}
+  .customer-nav{position:fixed;bottom:0;left:0;right:0;z-index:45;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;box-shadow:0 -3px 16px rgba(20,30,60,.07);}
+  .customer-nav button{width:min(180px,25%);border:0;background:#fff;padding:10px 5px 8px;color:var(--ink-faint);font-size:11px;font-weight:700;cursor:pointer;}
+  .customer-nav button span{display:block;font-size:20px;margin-bottom:2px;}
+  .customer-nav button.active{color:var(--green);}
+  .menu-day{margin:20px 0 10px;font-size:17px;font-weight:800;}
+  .menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .menu-product{background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;}
+  .menu-product-name{font-size:15px;font-weight:800;line-height:1.35;}
+  .qty-control{display:flex;align-items:center;gap:8px;margin-top:auto;}
+  .qty-control button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:18px;cursor:pointer;}
+  .qty-control strong{min-width:25px;text-align:center;}
+  .cart-bar{position:sticky;bottom:74px;background:var(--green);color:#fff;border-radius:14px;padding:13px 16px;margin-top:18px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 10px 25px rgba(47,111,87,.26);}
+  .portal-admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;}
+  .portal-list-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line-soft);font-size:13px;}
 
   .hero-card{background:linear-gradient(135deg,var(--grad-start),var(--grad-end));border-radius:16px;padding:20px 22px;color:#fff;margin-bottom:16px;box-shadow:0 10px 26px rgba(47,111,237,0.28);}
   .hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
@@ -345,7 +372,7 @@ const ORDER_STAGE_TABS = [
   { key:'cho_van_chuyen', label:'Chờ vận chuyển' },
   { key:'da_van_chuyen', label:'Đã vận chuyển' },
 ];
-const MORE_TABS = ['branches','recipes','subscriptions','expenses'];
+const MORE_TABS = ['debts','branches','recipes','subscriptions','expenses'];
 const SUB_STATUS = [
   { key:'dang_hoat_dong', label:'Đang hoạt động', color:'#3D7A4E' },
   { key:'tam_dung', label:'Tạm dừng', color:'#9A8355' },
@@ -365,6 +392,334 @@ const NAV = [
 // (Cài đặt → Đồng bộ dữ liệu trong ứng dụng có hướng dẫn tạo bảng + lấy khóa)
 const SUPABASE_URL = 'https://xpcshmykjntoxggmyoem.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_S-TONa26LpDa3zi8-pz5IQ_ObtZym94';
+const PORTAL_SETUP_SQL = String.raw`-- OYEN CUSTOMER PORTAL v3 - số điện thoại + mật khẩu, không cần SMS
+-- Chạy toàn bộ trong Supabase > SQL Editor trước khi gửi link cho khách.
+
+create extension if not exists pgcrypto;
+
+create table if not exists public.nuts_kv (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.profiles (
+  id uuid primary key references auth.users(id) on delete cascade,
+  email text,
+  name text not null default '',
+  phone text not null default '',
+  address text not null default '',
+  role text not null default 'customer' check (role in ('admin','customer')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.profiles add column if not exists address text not null default '';
+
+create or replace function public.handle_new_user()
+returns trigger language plpgsql security definer set search_path=public as $$
+begin
+  insert into public.profiles(id,email,name,phone,address,role)
+  values(new.id,new.email,coalesce(new.raw_user_meta_data->>'name',''),
+    coalesce(new.raw_user_meta_data->>'display_phone',new.raw_user_meta_data->>'phone',new.phone,''),
+    coalesce(new.raw_user_meta_data->>'address',''),
+    case when not exists(select 1 from public.profiles where role='admin') then 'admin' else 'customer' end)
+  on conflict(id) do update set
+    email=coalesce(excluded.email,public.profiles.email),
+    name=case when public.profiles.name='' then excluded.name else public.profiles.name end,
+    phone=case when public.profiles.phone='' then excluded.phone else public.profiles.phone end,
+    address=case when public.profiles.address='' then excluded.address else public.profiles.address end;
+  return new;
+end; $$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+
+insert into public.profiles(id,email,name,phone,address,role)
+select u.id,u.email,coalesce(u.raw_user_meta_data->>'name',''),
+  coalesce(u.raw_user_meta_data->>'display_phone',u.raw_user_meta_data->>'phone',u.phone,''),
+  coalesce(u.raw_user_meta_data->>'address',''),
+  case when not exists(select 1 from public.profiles where role='admin') and row_number() over(order by u.created_at)=1 then 'admin' else 'customer' end
+from auth.users u on conflict(id) do nothing;
+
+create or replace function public.is_admin()
+returns boolean language sql stable security definer set search_path=public as $$
+  select exists(select 1 from public.profiles where id=auth.uid() and role='admin');
+$$;
+
+create table if not exists public.daily_menus (
+  id uuid primary key default gen_random_uuid(),
+  menu_date date not null unique,
+  title text not null default 'Menu sữa hạt',
+  is_open boolean not null default true,
+  created_by uuid references auth.users(id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create table if not exists public.daily_menu_items (
+  id uuid primary key default gen_random_uuid(),
+  menu_id uuid not null references public.daily_menus(id) on delete cascade,
+  product_id text not null,
+  product_name text not null,
+  price numeric not null check(price>=0),
+  volume_ml integer not null default 330 check(volume_ml>0),
+  available boolean not null default true,
+  created_at timestamptz not null default now()
+);
+create index if not exists daily_menu_items_menu_idx on public.daily_menu_items(menu_id);
+
+create table if not exists public.coupons (
+  code text primary key,
+  discount_type text not null default 'percent' check(discount_type in ('percent','fixed')),
+  discount_value numeric not null check(discount_value>0),
+  min_order numeric not null default 0,
+  max_discount numeric,
+  starts_at date,
+  ends_at date,
+  usage_limit integer,
+  used_count integer not null default 0,
+  active boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.customer_packages (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  package_name text not null,
+  total_qty integer not null check(total_qty>0),
+  remaining_qty integer not null check(remaining_qty>=0 and remaining_qty<=total_qty),
+  unit_label text not null default 'ly',
+  price numeric not null default 0,
+  status text not null default 'active' check(status in ('active','paused','ended')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index if not exists customer_packages_user_idx on public.customer_packages(user_id);
+
+create table if not exists public.customer_orders (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id),
+  customer_name text not null,
+  phone text not null default '',
+  address text not null,
+  branch_id text,
+  delivery_date date not null,
+  delivery_time time,
+  status text not null default 'cho_xac_nhan' check(status in ('cho_xac_nhan','da_xac_nhan','dang_chuan_bi','dang_giao','hoan_thanh','da_huy')),
+  subtotal numeric not null default 0,
+  discount numeric not null default 0,
+  total numeric not null default 0,
+  coupon_code text references public.coupons(code),
+  package_id uuid references public.customer_packages(id),
+  note text not null default '',
+  idempotency_key text not null,
+  order_position double precision not null default extract(epoch from now()),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique(user_id,idempotency_key)
+);
+create index if not exists customer_orders_user_idx on public.customer_orders(user_id,created_at desc);
+create index if not exists customer_orders_status_idx on public.customer_orders(status,delivery_date);
+
+create table if not exists public.customer_order_items (
+  id uuid primary key default gen_random_uuid(),
+  order_id uuid not null references public.customer_orders(id) on delete cascade,
+  menu_item_id uuid references public.daily_menu_items(id) on delete set null,
+  product_id text not null,
+  product_name text not null,
+  unit_price numeric not null,
+  volume_ml integer not null default 330,
+  quantity integer not null check(quantity>0),
+  line_total numeric not null
+);
+create index if not exists customer_order_items_order_idx on public.customer_order_items(order_id);
+
+create table if not exists public.package_transactions (
+  id uuid primary key default gen_random_uuid(),
+  package_id uuid not null references public.customer_packages(id) on delete cascade,
+  user_id uuid not null references auth.users(id),
+  order_id uuid references public.customer_orders(id) on delete set null,
+  quantity integer not null,
+  kind text not null check(kind in ('use','refund','adjust')),
+  created_at timestamptz not null default now()
+);
+create table if not exists public.coupon_usages (
+  id uuid primary key default gen_random_uuid(),
+  coupon_code text not null references public.coupons(code),
+  user_id uuid not null references auth.users(id),
+  order_id uuid references public.customer_orders(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+create unique index if not exists coupon_usages_one_per_user_idx on public.coupon_usages(coupon_code,user_id);
+
+alter table public.profiles enable row level security;
+alter table public.daily_menus enable row level security;
+alter table public.daily_menu_items enable row level security;
+alter table public.coupons enable row level security;
+alter table public.customer_packages enable row level security;
+alter table public.customer_orders enable row level security;
+alter table public.customer_order_items enable row level security;
+alter table public.package_transactions enable row level security;
+alter table public.coupon_usages enable row level security;
+alter table public.nuts_kv enable row level security;
+
+drop policy if exists "Cho phép đọc/ghi bằng anon key" on public.nuts_kv;
+drop policy if exists profiles_self_read on public.profiles;
+drop policy if exists profiles_self_update on public.profiles;
+drop policy if exists profiles_admin_all on public.profiles;
+create policy profiles_self_read on public.profiles for select to authenticated using(id=auth.uid() or public.is_admin());
+create policy profiles_self_update on public.profiles for update to authenticated using(id=auth.uid()) with check(id=auth.uid());
+create policy profiles_admin_all on public.profiles for all to authenticated using(public.is_admin()) with check(public.is_admin());
+
+drop policy if exists nuts_admin_all on public.nuts_kv;
+create policy nuts_admin_all on public.nuts_kv for all to authenticated using(public.is_admin()) with check(public.is_admin());
+
+drop policy if exists menus_customer_read on public.daily_menus;
+drop policy if exists menus_admin_all on public.daily_menus;
+create policy menus_customer_read on public.daily_menus for select to authenticated using(is_open or public.is_admin());
+create policy menus_admin_all on public.daily_menus for all to authenticated using(public.is_admin()) with check(public.is_admin());
+drop policy if exists menu_items_customer_read on public.daily_menu_items;
+drop policy if exists menu_items_admin_all on public.daily_menu_items;
+create policy menu_items_customer_read on public.daily_menu_items for select to authenticated using(exists(select 1 from public.daily_menus m where m.id=menu_id and (m.is_open or public.is_admin())));
+create policy menu_items_admin_all on public.daily_menu_items for all to authenticated using(public.is_admin()) with check(public.is_admin());
+
+drop policy if exists coupons_admin_all on public.coupons;
+create policy coupons_admin_all on public.coupons for all to authenticated using(public.is_admin()) with check(public.is_admin());
+drop policy if exists packages_self_read on public.customer_packages;
+drop policy if exists packages_admin_all on public.customer_packages;
+create policy packages_self_read on public.customer_packages for select to authenticated using(user_id=auth.uid() or public.is_admin());
+create policy packages_admin_all on public.customer_packages for all to authenticated using(public.is_admin()) with check(public.is_admin());
+drop policy if exists orders_self_read on public.customer_orders;
+drop policy if exists orders_admin_all on public.customer_orders;
+create policy orders_self_read on public.customer_orders for select to authenticated using(user_id=auth.uid() or public.is_admin());
+create policy orders_admin_all on public.customer_orders for all to authenticated using(public.is_admin()) with check(public.is_admin());
+drop policy if exists order_items_self_read on public.customer_order_items;
+drop policy if exists order_items_admin_all on public.customer_order_items;
+create policy order_items_self_read on public.customer_order_items for select to authenticated using(exists(select 1 from public.customer_orders o where o.id=order_id and (o.user_id=auth.uid() or public.is_admin())));
+create policy order_items_admin_all on public.customer_order_items for all to authenticated using(public.is_admin()) with check(public.is_admin());
+drop policy if exists package_tx_self_read on public.package_transactions;
+drop policy if exists package_tx_admin_all on public.package_transactions;
+create policy package_tx_self_read on public.package_transactions for select to authenticated using(user_id=auth.uid() or public.is_admin());
+create policy package_tx_admin_all on public.package_transactions for all to authenticated using(public.is_admin()) with check(public.is_admin());
+drop policy if exists coupon_usage_self_read on public.coupon_usages;
+drop policy if exists coupon_usage_admin_all on public.coupon_usages;
+create policy coupon_usage_self_read on public.coupon_usages for select to authenticated using(user_id=auth.uid() or public.is_admin());
+create policy coupon_usage_admin_all on public.coupon_usages for all to authenticated using(public.is_admin()) with check(public.is_admin());
+
+grant select on public.profiles to anon;
+grant select on public.profiles to authenticated;
+revoke update on public.profiles from authenticated;
+grant update(name,phone,address,updated_at) on public.profiles to authenticated;
+grant select on public.daily_menus,public.daily_menu_items to authenticated;
+grant select on public.customer_packages,public.customer_orders,public.customer_order_items,public.package_transactions,public.coupon_usages to authenticated;
+grant all on public.nuts_kv,public.daily_menus,public.daily_menu_items,public.coupons,public.customer_packages,public.customer_orders,public.customer_order_items,public.package_transactions,public.coupon_usages to authenticated;
+revoke all on public.nuts_kv from anon;
+
+create or replace function public.place_customer_order(
+  p_items jsonb,p_delivery_date date,p_delivery_time time,p_address text,p_note text default '',p_coupon_code text default null,p_package_id uuid default null,p_idempotency_key text default null
+) returns uuid language plpgsql security definer set search_path=public as $$
+declare
+  v_user uuid:=auth.uid(); v_profile public.profiles%rowtype; v_order uuid; v_item jsonb; v_menu_item public.daily_menu_items%rowtype;
+  v_qty integer; v_total_qty integer:=0; v_subtotal numeric:=0; v_discount numeric:=0; v_total numeric:=0;
+  v_coupon public.coupons%rowtype; v_package public.customer_packages%rowtype;
+begin
+  if v_user is null then raise exception 'Vui lòng đăng nhập.'; end if;
+  if p_idempotency_key is null or p_idempotency_key='' then raise exception 'Mã chống trùng đơn không hợp lệ.'; end if;
+  select id into v_order from public.customer_orders where user_id=v_user and idempotency_key=p_idempotency_key;
+  if v_order is not null then return v_order; end if;
+  select * into v_profile from public.profiles where id=v_user;
+  if v_profile.id is null then raise exception 'Không tìm thấy hồ sơ khách hàng.'; end if;
+  if trim(coalesce(v_profile.name,''))='' then raise exception 'Vui lòng cập nhật họ tên trước khi đặt hàng.'; end if;
+  if trim(coalesce(v_profile.phone,''))='' then raise exception 'Vui lòng cập nhật số điện thoại trước khi đặt hàng.'; end if;
+  if trim(coalesce(p_address,''))='' then raise exception 'Vui lòng nhập địa chỉ giao hàng.'; end if;
+  if p_items is null or jsonb_array_length(p_items)=0 then raise exception 'Đơn hàng chưa có sản phẩm.'; end if;
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_qty:=greatest(1,coalesce((v_item->>'quantity')::integer,1));
+    select i.* into v_menu_item from public.daily_menu_items i join public.daily_menus m on m.id=i.menu_id where i.id=(v_item->>'menu_item_id')::uuid and i.available and m.is_open and m.menu_date=p_delivery_date for share of i;
+    if v_menu_item.id is null then raise exception 'Một sản phẩm không còn mở bán.'; end if;
+    v_total_qty:=v_total_qty+v_qty; v_subtotal:=v_subtotal+(v_menu_item.price*v_qty);
+  end loop;
+  if p_package_id is not null and p_coupon_code is not null then raise exception 'Không thể dùng đồng thời gói và mã giảm giá.'; end if;
+  if p_package_id is not null then
+    select * into v_package from public.customer_packages where id=p_package_id and user_id=v_user and status='active' for update;
+    if v_package.id is null then raise exception 'Gói không hợp lệ.'; end if;
+    if v_package.remaining_qty<v_total_qty then raise exception 'Gói không đủ số ly còn lại.'; end if;
+    v_total:=0;
+  elsif p_coupon_code is not null then
+    select * into v_coupon from public.coupons where code=upper(trim(p_coupon_code)) and active for update;
+    if v_coupon.code is null or (v_coupon.starts_at is not null and current_date<v_coupon.starts_at) or (v_coupon.ends_at is not null and current_date>v_coupon.ends_at) or (v_coupon.usage_limit is not null and v_coupon.used_count>=v_coupon.usage_limit) then raise exception 'Mã giảm giá không hợp lệ hoặc đã hết hạn.'; end if;
+    if exists(select 1 from public.coupon_usages where coupon_code=v_coupon.code and user_id=v_user) then raise exception 'Bạn đã sử dụng mã giảm giá này.'; end if;
+    if v_subtotal<v_coupon.min_order then raise exception 'Đơn hàng chưa đạt giá trị tối thiểu của mã.'; end if;
+    v_discount:=case when v_coupon.discount_type='percent' then v_subtotal*v_coupon.discount_value/100 else v_coupon.discount_value end;
+    if v_coupon.max_discount is not null then v_discount:=least(v_discount,v_coupon.max_discount); end if;
+    v_discount:=least(v_discount,v_subtotal); v_total:=v_subtotal-v_discount;
+  else v_total:=v_subtotal; end if;
+  insert into public.customer_orders(user_id,customer_name,phone,address,delivery_date,delivery_time,subtotal,discount,total,coupon_code,package_id,note,idempotency_key)
+  values(v_user,trim(v_profile.name),trim(v_profile.phone),trim(p_address),p_delivery_date,p_delivery_time,v_subtotal,v_discount,v_total,v_coupon.code,v_package.id,coalesce(p_note,''),p_idempotency_key) returning id into v_order;
+  for v_item in select * from jsonb_array_elements(p_items) loop
+    v_qty:=greatest(1,coalesce((v_item->>'quantity')::integer,1));
+    select * into v_menu_item from public.daily_menu_items where id=(v_item->>'menu_item_id')::uuid;
+    insert into public.customer_order_items(order_id,menu_item_id,product_id,product_name,unit_price,volume_ml,quantity,line_total)
+    values(v_order,v_menu_item.id,v_menu_item.product_id,v_menu_item.product_name,v_menu_item.price,v_menu_item.volume_ml,v_qty,v_menu_item.price*v_qty);
+  end loop;
+  if v_package.id is not null then
+    update public.customer_packages set remaining_qty=remaining_qty-v_total_qty,updated_at=now() where id=v_package.id;
+    insert into public.package_transactions(package_id,user_id,order_id,quantity,kind) values(v_package.id,v_user,v_order,-v_total_qty,'use');
+  end if;
+  if v_coupon.code is not null then
+    update public.coupons set used_count=used_count+1 where code=v_coupon.code;
+    insert into public.coupon_usages(coupon_code,user_id,order_id) values(v_coupon.code,v_user,v_order);
+  end if;
+  return v_order;
+end; $$;
+
+create or replace function public.admin_delete_customer_order(p_order_id uuid)
+returns void language plpgsql security definer set search_path=public as $$
+declare v_order public.customer_orders%rowtype; v_qty integer;
+begin
+  if not public.is_admin() then raise exception 'Không có quyền quản trị.'; end if;
+  select * into v_order from public.customer_orders where id=p_order_id for update;
+  if v_order.id is null then return; end if;
+  if v_order.package_id is not null then
+    select coalesce(sum(quantity),0) into v_qty from public.customer_order_items where order_id=p_order_id;
+    update public.customer_packages set remaining_qty=least(total_qty,remaining_qty+v_qty),updated_at=now() where id=v_order.package_id;
+    insert into public.package_transactions(package_id,user_id,order_id,quantity,kind) values(v_order.package_id,v_order.user_id,v_order.id,v_qty,'refund');
+  end if;
+  if v_order.coupon_code is not null then update public.coupons set used_count=greatest(0,used_count-1) where code=v_order.coupon_code; end if;
+  delete from public.customer_orders where id=p_order_id;
+end; $$;
+
+grant execute on function public.place_customer_order(jsonb,date,time,text,text,text,uuid,text) to authenticated;
+grant execute on function public.admin_delete_customer_order(uuid) to authenticated;
+
+do $$ begin
+  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='customer_orders') then alter publication supabase_realtime add table public.customer_orders; end if;
+  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='customer_packages') then alter publication supabase_realtime add table public.customer_packages; end if;
+  if not exists(select 1 from pg_publication_tables where pubname='supabase_realtime' and schemaname='public' and tablename='daily_menus') then alter publication supabase_realtime add table public.daily_menus; end if;
+end $$;`;
+const ADMIN_SETUP_SQL = String.raw`-- OYEN ADMIN - đồng bộ dữ liệu quản trị, không chia tài khoản khách
+create table if not exists public.nuts_kv (
+  key text primary key,
+  value jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.nuts_kv enable row level security;
+drop policy if exists "Cho phép đọc/ghi bằng anon key" on public.nuts_kv;
+drop policy if exists "Cho phép đọc/ghi ứng dụng quản trị" on public.nuts_kv;
+drop policy if exists nuts_admin_all on public.nuts_kv;
+create policy "Cho phép đọc/ghi ứng dụng quản trị"
+on public.nuts_kv for all to anon, authenticated
+using (true) with check (true);
+
+grant select,insert,update,delete on public.nuts_kv to anon, authenticated;
+
+do $$ begin
+  if not exists(
+    select 1 from pg_publication_tables
+    where pubname='supabase_realtime' and schemaname='public' and tablename='nuts_kv'
+  ) then alter publication supabase_realtime add table public.nuts_kv; end if;
+end $$;`;
 let supaClient = null;
 let supaReady = false;
 function initSupabase(){
@@ -378,7 +733,7 @@ function initSupabase(){
 }
 function setupRealtimeSync(){
   if(!supaClient) return;
-  const map = {'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:subscription_payments':'subscriptionPayments','nuts:branches':'branches','nuts:raw_materials':'rawMaterials','nuts:expenses':'expenses'};
+  const map = {'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:subscription_payments':'subscriptionPayments','nuts:customer_payments':'customerPayments','nuts:branches':'branches','nuts:raw_materials':'rawMaterials','nuts:expenses':'expenses'};
   supaClient.channel('nuts_kv_live')
     .on('postgres_changes', {event:'*', schema:'public', table:'nuts_kv'}, async (payload)=>{
       const key = payload.new?.key || payload.old?.key;
@@ -387,6 +742,11 @@ function setupRealtimeSync(){
       DB[field] = await loadKey(key, DB[field]);
       if(LOADED) renderMain();
     }).subscribe();
+  if(PORTAL_ENABLED){
+    supaClient.channel('customer_orders_admin_live')
+      .on('postgres_changes',{event:'*',schema:'public',table:'customer_orders'},()=>syncPortalOrdersToAdmin())
+      .subscribe();
+  }
 }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
@@ -531,16 +891,25 @@ function seedMenuSampleData(){
 }
 
 /* ================= STATE ================= */
-const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subscribers:[], subscriptionPayments:[], branches:[], rawMaterials:[], expenses:[] };
+const DB = { products:[], recipes:[], customers:[], orders:[], packages:[], subscribers:[], subscriptionPayments:[], customerPayments:[], branches:[], rawMaterials:[], expenses:[] };
 let LOADED = false;
 let TAB = 'dashboard';
 let ordersFilter = { mode:'all', from: todayISO(), to: todayISO(), status:'all', search:'', branch:'all' };
 let selectedOrderIds = new Set();
 let customersFilter = { search:'' };
 let productsFilter = { search:'' };
+let debtFilter = { search:'', view:'unpaid' };
 let dashFilter = { mode:'today', from: todayISO(), to: todayISO(), branch:'all' };
 let draggedOrderId = '';
 let touchedOrderId = '';
+let PORTAL_ENABLED = false;
+let AUTH_USER = null;
+let AUTH_PROFILE = null;
+let AUTH_VIEW = 'login';
+let CUSTOMER_TAB = 'menu';
+let CUSTOMER_DATA = {profile:null,menus:[],packages:[],orders:[]};
+let CUSTOMER_CART = {};
+let PORTAL_ADMIN_DATA = {menus:[],coupons:[],profiles:[],packages:[]};
 
 /* Chuyển dữ liệu gói đăng ký kiểu cũ (1 gói = 1 khách) sang mô hình mới:
    1 gói (package) dùng chung cho nhiều khách (subscriber), mỗi khách có số
@@ -585,7 +954,18 @@ function migrateOrderPositions(){
 
 async function init(){
   initSupabase();
-  const [p,r,c,o,pkgs,subr,subPayments,legacySubs,b,rm,ex,menuSampleSeeded] = await Promise.all([
+  PORTAL_ENABLED=false;
+  await loadAdminData();
+}
+function setupAuthWatcher(){
+  if(!supaClient || setupAuthWatcher.ready) return;
+  setupAuthWatcher.ready=true;
+  supaClient.auth.onAuthStateChange((event)=>{
+    if(['SIGNED_IN','SIGNED_OUT','USER_UPDATED'].includes(event)) setTimeout(()=>window.location.reload(),0);
+  });
+}
+async function loadAdminData(){
+  const [p,r,c,o,pkgs,subr,subPayments,customerPayments,legacySubs,b,rm,ex,menuSampleSeeded,debtBaselinePaid] = await Promise.all([
     loadKey('nuts:products', null),
     loadKey('nuts:recipes', []),
     loadKey('nuts:customers', []),
@@ -593,11 +973,13 @@ async function init(){
     loadKey('nuts:packages', null),
     loadKey('nuts:subscribers', null),
     loadKey('nuts:subscription_payments', []),
+    loadKey('nuts:customer_payments', []),
     loadKey('nuts:subs', []),
     loadKey('nuts:branches', null),
     loadKey('nuts:raw_materials', []),
     loadKey('nuts:expenses', []),
     loadKey('nuts:menu_39_sample_seeded', false),
+    loadKey('nuts:debt_baseline_paid_v1', false),
   ]);
   DB.products = p ?? seedProducts();
   DB.recipes = r ?? [];
@@ -607,6 +989,16 @@ async function init(){
   DB.rawMaterials = rm ?? [];
   DB.expenses = ex ?? [];
   DB.subscriptionPayments = subPayments ?? [];
+  DB.customerPayments = customerPayments ?? [];
+  let ordersChanged=false;
+  if(!debtBaselinePaid){
+    DB.orders.forEach(order=>{
+      order.paymentStatus='da_thanh_toan';
+      order.paidAt=order.paidAt||null;
+    });
+    ordersChanged=true;
+    await saveKey('nuts:debt_baseline_paid_v1', true);
+  }
   migrateRecipeIngredients();
   if(pkgs && subr){
     DB.packages = pkgs; DB.subscribers = subr;
@@ -627,22 +1019,24 @@ async function init(){
     await saveKey('nuts:menu_39_sample_seeded', true);
   }
   migrateProductVolumes();
-  if(migrateOrderPositions()) saveKey('nuts:orders', DB.orders);
+  if(migrateOrderPositions()) ordersChanged=true;
+  if(ordersChanged) await saveKey('nuts:orders', DB.orders.filter(order=>!order.portalOrderId));
   LOADED = true;
   saveKey('nuts:products', DB.products);
   saveKey('nuts:branches', DB.branches);
   saveKey('nuts:raw_materials', DB.rawMaterials);
   saveKey('nuts:expenses', DB.expenses);
   render();
-  if(supaClient) setupRealtimeSync();
+  if(supaClient){ setupRealtimeSync(); if(PORTAL_ENABLED) await syncPortalOrdersToAdmin(); }
 }
 function persistProducts(){ saveKey('nuts:products', DB.products); }
 function persistRecipes(){ saveKey('nuts:recipes', DB.recipes); }
 function persistCustomers(){ saveKey('nuts:customers', DB.customers); }
-function persistOrders(){ saveKey('nuts:orders', DB.orders); }
+function persistOrders(){ saveKey('nuts:orders', DB.orders.filter(order=>!order.portalOrderId)); }
 function persistPackages(){ saveKey('nuts:packages', DB.packages); }
 function persistSubscribers(){ saveKey('nuts:subscribers', DB.subscribers); }
 function persistSubscriptionPayments(){ saveKey('nuts:subscription_payments', DB.subscriptionPayments); }
+function persistCustomerPayments(){ saveKey('nuts:customer_payments', DB.customerPayments); }
 function persistBranches(){ saveKey('nuts:branches', DB.branches); }
 function persistRawMaterials(){ saveKey('nuts:raw_materials', DB.rawMaterials); }
 function persistExpenses(){ saveKey('nuts:expenses', DB.expenses); }
@@ -829,6 +1223,8 @@ function closeModal(){ document.getElementById('modalRoot').innerHTML = ''; }
 function render(){
   const app = document.getElementById('app');
   if(!LOADED){ app.innerHTML = '<div class="loading">Đang tải dữ liệu...</div>'; return; }
+  if(PORTAL_ENABLED && !AUTH_USER){ app.innerHTML=renderAuthPage(); return; }
+  if(PORTAL_ENABLED && AUTH_PROFILE?.role!=='admin'){ app.innerHTML=renderCustomerApp(); return; }
   app.innerHTML = `
     <div class="app">
       <aside class="sidebar">
@@ -839,6 +1235,7 @@ function render(){
         <nav class="navlist">
           ${NAV.map(n=>`<button class="navitem ${navIsActive(n.key)?'active':''}" onclick="setTab('${n.key}')"><span class="navicon">${n.icon}</span>${n.label}</button>`).join('')}
         </nav>
+        ${PORTAL_ENABLED?`<div class="user-chip"><span>👤</span><span style="min-width:0;overflow:hidden;text-overflow:ellipsis;">${escapeHtml(AUTH_PROFILE?.name||AUTH_USER?.phone||AUTH_USER?.email||'Quản trị')}</span><button class="icon-btn" onclick="signOutPortal()" title="Đăng xuất">↪</button></div>`:''}
       </aside>
       <main class="main" id="mainContent"></main>
     </div>
@@ -863,11 +1260,13 @@ function renderMain(){
   else if(TAB==='products'){ el.innerHTML = renderProductsTab(); refreshProductsList(); }
   else if(TAB==='recipes') el.innerHTML = renderRecipesTab();
   else if(TAB==='expenses') el.innerHTML = renderExpensesTab();
+  else if(TAB==='debts') el.innerHTML = renderDebtsTab();
   else if(TAB==='settings') el.innerHTML = renderSettingsTab();
 }
 
 function renderMoreTab(){
   const items = [
+    {key:'debts', icon:'💳', title:'Công nợ', sub:'Theo dõi đơn, số ly và số tiền khách còn nợ'},
     {key:'branches', icon:'🏬', title:'Cơ sở', sub:'Quản lý địa điểm và chi nhánh'},
     {key:'recipes', icon:'📖', title:'Công thức', sub:'Định lượng và giá cost từng sản phẩm'},
     {key:'subscriptions', icon:'🔁', title:'Gói đăng ký', sub:'Quản lý gói và lượt dùng của khách'},
@@ -880,6 +1279,259 @@ function renderMoreTab(){
         <span><span class="more-card-title">${item.title}</span><span class="more-card-sub" style="display:block;">${item.sub}</span></span>
       </button>`).join('')}
     </div>`;
+}
+
+/* ================= AUTH & CUSTOMER PORTAL ================= */
+function normalizeVietnamPhone(value){
+  const raw=String(value||'').trim().replace(/[\s.()-]/g,'');
+  if(/^0\d{9}$/.test(raw)) return `+84${raw.slice(1)}`;
+  if(/^84\d{9}$/.test(raw)) return `+${raw}`;
+  if(/^\+84\d{9}$/.test(raw)) return raw;
+  return '';
+}
+function localVietnamPhone(value){
+  const normalized=normalizeVietnamPhone(value);
+  return normalized?`0${normalized.slice(3)}`:String(value||'').trim();
+}
+function phoneAuthEmail(value){
+  const normalized=normalizeVietnamPhone(value);
+  return normalized?`${normalized.replace('+','')}@phone.invalid`:'';
+}
+function renderAuthPage(){
+  const register=AUTH_VIEW==='register';
+  return `<div class="auth-page"><div class="auth-card">
+    <div class="auth-logo">O</div><h1 style="margin:0;font-size:25px;">OYEN NUTMILK</h1>
+    <p class="section-sub">${register?'Tạo tài khoản để đặt sữa và theo dõi gói':'Đăng nhập vào tài khoản của bạn'}</p>
+    <div class="auth-tabs"><button class="${register?'':'active'}" onclick="setAuthView('login')">Đăng nhập</button><button class="${register?'active':''}" onclick="setAuthView('register')">Đăng ký</button></div>
+    <form onsubmit="submitPortalAuth(event)">
+      ${register?`<div class="field"><span class="field-label">Họ và tên</span><input class="input" id="authName" required autocomplete="name"></div>
+      <div class="field"><span class="field-label">Địa chỉ giao hàng mặc định</span><input class="input" id="authAddress" required autocomplete="street-address" placeholder="Số nhà, đường, phường/xã..."></div>`:''}
+      <div class="field"><span class="field-label">${register?'Số điện thoại':'Số điện thoại hoặc email quản trị cũ'}</span><input class="input" id="authIdentifier" required autocomplete="username" inputmode="${register?'tel':'text'}" placeholder="0912345678"></div>
+      <div class="field"><span class="field-label">Mật khẩu</span><input class="input" id="authPassword" type="password" minlength="6" required autocomplete="${register?'new-password':'current-password'}"></div>
+      <div id="authMessage" class="auth-message"></div>
+      <button class="btn btn-solid" style="width:100%;justify-content:center;" type="submit">${register?'Tạo tài khoản':'Đăng nhập'}</button>
+    </form>
+    <p class="field-hint" style="margin-top:14px;text-align:center;">Thông tin đơn hàng và gói được bảo vệ theo từng tài khoản.</p>
+  </div></div>`;
+}
+function setAuthView(view){ AUTH_VIEW=view; render(); }
+async function submitPortalAuth(event){
+  event.preventDefault();
+  const message=document.getElementById('authMessage');
+  const button=event.submitter; button.disabled=true; message.textContent='Đang xử lý...';
+  const identifier=document.getElementById('authIdentifier').value.trim();
+  const password=document.getElementById('authPassword').value;
+  try{
+    let result;
+    if(AUTH_VIEW==='register'){
+      const phone=normalizeVietnamPhone(identifier);
+      if(!phone) throw new Error('Số điện thoại chưa đúng. Hãy nhập dạng 0912345678.');
+      const name=document.getElementById('authName').value.trim();
+      const address=document.getElementById('authAddress').value.trim();
+      if(!name) throw new Error('Vui lòng nhập họ và tên.');
+      if(!address) throw new Error('Vui lòng nhập địa chỉ giao hàng.');
+      result=await supaClient.auth.signUp({email:phoneAuthEmail(phone),password,options:{data:{name,phone,display_phone:localVietnamPhone(phone),address,login_method:'phone_alias'}}});
+      if(!result.error && !result.data.session){ message.textContent='Supabase đang bật xác nhận email. Hãy tắt Confirm email trong Email provider rồi đăng ký lại.'; return; }
+    }else{
+      const credentials=identifier.includes('@')?{email:identifier,password}:{email:phoneAuthEmail(identifier),password};
+      if(!credentials.email) throw new Error('Số điện thoại chưa đúng. Hãy nhập dạng 0912345678.');
+      result=await supaClient.auth.signInWithPassword(credentials);
+    }
+    if(result.error) throw result.error;
+    message.style.color='var(--green)'; message.textContent='Thành công, đang mở ứng dụng...';
+    setTimeout(()=>window.location.reload(),300);
+  }catch(error){ message.textContent=authErrorMessage(error); }
+  finally{ button.disabled=false; }
+}
+function authErrorMessage(error){
+  const value=String(error?.message||error||'');
+  if(/invalid login/i.test(value)) return 'Số điện thoại hoặc mật khẩu chưa đúng.';
+  if(/already registered|already been registered/i.test(value)) return 'Số điện thoại này đã có tài khoản.';
+  if(/email.*not confirmed/i.test(value)) return 'Tài khoản chưa được kích hoạt. Hãy tắt Confirm email trong Supabase rồi đăng ký lại.';
+  return value||'Không thể đăng nhập. Vui lòng thử lại.';
+}
+async function signOutPortal(){ if(supaClient) await supaClient.auth.signOut(); window.location.reload(); }
+
+async function loadCustomerPortalData(){
+  if(!supaClient || !AUTH_USER) return;
+  const [menus,packages,orders,profile]=await Promise.all([
+    supaClient.from('daily_menus').select('*,daily_menu_items(*)').eq('is_open',true).gte('menu_date',todayISO()).order('menu_date'),
+    supaClient.from('customer_packages').select('*').eq('status','active').order('created_at',{ascending:false}),
+    supaClient.from('customer_orders').select('*,customer_order_items(*)').order('created_at',{ascending:false}),
+    supaClient.from('profiles').select('*').eq('id',AUTH_USER.id).maybeSingle(),
+  ]);
+  CUSTOMER_DATA={profile:profile.data||AUTH_PROFILE,menus:menus.data||[],packages:packages.data||[],orders:orders.data||[]};
+}
+function setupCustomerRealtime(){
+  if(!supaClient || !AUTH_USER || setupCustomerRealtime.ready) return;
+  setupCustomerRealtime.ready=true;
+  supaClient.channel(`customer_portal_${AUTH_USER.id}`)
+    .on('postgres_changes',{event:'*',schema:'public',table:'customer_orders',filter:`user_id=eq.${AUTH_USER.id}`},refreshCustomerPortal)
+    .on('postgres_changes',{event:'*',schema:'public',table:'customer_packages',filter:`user_id=eq.${AUTH_USER.id}`},refreshCustomerPortal)
+    .on('postgres_changes',{event:'*',schema:'public',table:'daily_menus'},refreshCustomerPortal).subscribe();
+}
+async function refreshCustomerPortal(){ await loadCustomerPortalData(); if(AUTH_PROFILE?.role!=='admin') render(); }
+function setCustomerTab(tab){ CUSTOMER_TAB=tab; render(); }
+function renderCustomerApp(){
+  const name=CUSTOMER_DATA.profile?.name||AUTH_PROFILE?.name||'Khách hàng';
+  return `<div class="customer-app">
+    <header class="customer-header"><div><div class="customer-brand">OYEN</div><div style="font-size:12px;color:var(--ink-soft);">Xin chào, ${escapeHtml(name)}</div></div><button class="btn btn-ghost" onclick="signOutPortal()">Đăng xuất</button></header>
+    <main class="customer-content">${renderCustomerContent()}</main>
+    <nav class="customer-nav">
+      ${[['menu','🥛','Menu'],['orders','🧾','Đơn hàng'],['packages','🔁','Gói của tôi'],['account','👤','Tài khoản']].map(([key,icon,label])=>`<button class="${CUSTOMER_TAB===key?'active':''}" onclick="setCustomerTab('${key}')"><span>${icon}</span>${label}</button>`).join('')}
+    </nav></div>`;
+}
+function renderCustomerContent(){
+  if(CUSTOMER_TAB==='orders') return renderCustomerOrders();
+  if(CUSTOMER_TAB==='packages') return renderCustomerPackages();
+  if(CUSTOMER_TAB==='account') return renderCustomerAccount();
+  return renderCustomerMenu();
+}
+function menuItemById(id){
+  for(const menu of CUSTOMER_DATA.menus){ const item=(menu.daily_menu_items||[]).find(row=>row.id===id); if(item) return {...item,menu_date:menu.menu_date}; }
+  return null;
+}
+function cartQuantity(){ return Object.values(CUSTOMER_CART).reduce((sum,qty)=>sum+(Number(qty)||0),0); }
+function cartSubtotal(){ return Object.entries(CUSTOMER_CART).reduce((sum,[id,qty])=>sum+(Number(menuItemById(id)?.price)||0)*(Number(qty)||0),0); }
+function changeCartQty(itemId,delta){
+  if(delta>0){
+    const date=menuItemById(itemId)?.menu_date;
+    const otherDate=Object.keys(CUSTOMER_CART).find(id=>(CUSTOMER_CART[id]||0)>0 && menuItemById(id)?.menu_date!==date);
+    if(otherDate){ alert('Mỗi đơn chỉ chọn sản phẩm trong cùng một ngày menu. Hãy đặt xong ngày đang chọn trước.'); return; }
+  }
+  const next=Math.max(0,(Number(CUSTOMER_CART[itemId])||0)+delta);
+  if(next) CUSTOMER_CART[itemId]=next; else delete CUSTOMER_CART[itemId];
+  render();
+}
+function renderCustomerMenu(){
+  if(!CUSTOMER_DATA.menus.length) return `${sectionHeader('Menu theo ngày','Hiện chưa có menu nào đang mở bán')}<div class="empty-state"><div class="empty-icon">🥛</div><div class="empty-title">Menu đang được chuẩn bị</div><div class="empty-sub">Bạn vui lòng quay lại sau.</div></div>`;
+  return `${sectionHeader('Menu đặt sữa','Chọn món và số lượng bạn muốn đặt')}
+    ${CUSTOMER_DATA.menus.map(menu=>`<section><div class="menu-day">📅 ${fmtDate(menu.menu_date)} · ${escapeHtml(menu.title||'Menu trong ngày')}</div><div class="menu-grid">
+      ${(menu.daily_menu_items||[]).filter(item=>item.available).map(item=>`<div class="menu-product"><div class="menu-product-name">${escapeHtml(item.product_name)}</div><div style="font-size:12px;color:var(--ink-faint);">${Number(item.volume_ml||330).toLocaleString('vi-VN')}ml</div><div style="font-size:18px;font-weight:900;color:var(--green);">${vnd(item.price)}</div><div class="qty-control"><button onclick="changeCartQty('${item.id}',-1)">−</button><strong>${CUSTOMER_CART[item.id]||0}</strong><button onclick="changeCartQty('${item.id}',1)">＋</button></div></div>`).join('')}
+    </div></section>`).join('')}
+    ${cartQuantity()?`<div class="cart-bar"><div><strong>${cartQuantity()} ly</strong><div style="font-size:12px;opacity:.85;">${vnd(cartSubtotal())}</div></div><button class="btn" style="background:#fff;color:var(--green);" onclick="openCustomerCheckout()">Đặt hàng →</button></div>`:''}`;
+}
+function openCustomerCheckout(){
+  if(!cartQuantity()) return;
+  const profile=CUSTOMER_DATA.profile||{};
+  const body=`<form onsubmit="submitCustomerOrder(event)">
+    <div class="field"><span class="field-label">Đơn đã chọn</span>${Object.entries(CUSTOMER_CART).map(([id,qty])=>{const item=menuItemById(id);return `<div class="portal-list-row"><span>${escapeHtml(item?.product_name||'Sản phẩm')} × ${qty}</span><strong>${vnd((item?.price||0)*qty)}</strong></div>`;}).join('')}</div>
+    <div class="field-row"><div class="field"><span class="field-label">Người nhận</span><input class="input" value="${escapeHtml(profile.name||'')}" disabled></div><div class="field"><span class="field-label">Số điện thoại</span><input class="input" value="${escapeHtml(profile.phone||localVietnamPhone(AUTH_USER?.phone||''))}" disabled></div></div>
+    <div class="field-row"><div class="field"><span class="field-label">Ngày giao</span><input class="input" type="date" id="customerDeliveryDate" min="${todayISO()}" value="${Object.keys(CUSTOMER_CART).map(id=>menuItemById(id)?.menu_date).filter(Boolean).sort()[0]||todayISO()}" required></div><div class="field"><span class="field-label">Giờ giao</span><input class="input" type="time" id="customerDeliveryTime"></div></div>
+    <div class="field"><span class="field-label">Địa chỉ giao hàng</span><input class="input" id="customerAddress" value="${escapeHtml(profile.address||'')}" required></div>
+    <label class="check-label" style="margin-top:-6px;"><input type="checkbox" id="saveDefaultAddress"> Lưu địa chỉ này làm địa chỉ mặc định</label>
+    <div class="field"><span class="field-label">Dùng gói</span><select class="input" id="customerPackage"><option value="">— Không dùng gói —</option>${CUSTOMER_DATA.packages.map(pkg=>`<option value="${pkg.id}">${escapeHtml(pkg.package_name)} — còn ${pkg.remaining_qty}/${pkg.total_qty} ${escapeHtml(pkg.unit_label||'ly')}</option>`).join('')}</select><span class="field-hint">Nếu dùng gói, hệ thống trừ đúng ${cartQuantity()} ly.</span></div>
+    <div class="field"><span class="field-label">Mã giảm giá</span><input class="input" id="customerCoupon" placeholder="Nhập mã (không áp dụng cùng gói)"></div>
+    <div class="field"><span class="field-label">Ghi chú</span><textarea class="input" id="customerNote" placeholder="Ít đường, giao trước cổng..."></textarea></div>
+    <div id="checkoutMessage" class="auth-message"></div>
+    <div class="total-row"><span class="total-label">Tạm tính</span><span class="total-value">${vnd(cartSubtotal())}</span></div>
+    <div class="form-actions"><button class="btn btn-solid" type="submit">Xác nhận đặt hàng</button><button class="btn btn-ghost" type="button" onclick="closeModal()">Hủy</button></div>
+  </form>`;
+  openModal('Xác nhận đơn hàng',body,true);
+}
+async function submitCustomerOrder(event){
+  event.preventDefault();
+  const message=document.getElementById('checkoutMessage'); const button=event.submitter; button.disabled=true; message.textContent='Đang tạo đơn...';
+  const address=document.getElementById('customerAddress').value.trim();
+  if(!address){ message.textContent='Vui lòng nhập địa chỉ giao hàng.'; button.disabled=false; return; }
+  const items=Object.entries(CUSTOMER_CART).map(([menu_item_id,quantity])=>({menu_item_id,quantity:Number(quantity)}));
+  const saveDefaultAddress=document.getElementById('saveDefaultAddress').checked;
+  const payload={p_items:items,p_delivery_date:document.getElementById('customerDeliveryDate').value,p_delivery_time:document.getElementById('customerDeliveryTime').value||null,p_address:address,p_note:document.getElementById('customerNote').value.trim(),p_coupon_code:document.getElementById('customerCoupon').value.trim()||null,p_package_id:document.getElementById('customerPackage').value||null,p_idempotency_key:uid()};
+  const {data,error}=await supaClient.rpc('place_customer_order',payload);
+  if(error){ message.textContent=error.message; button.disabled=false; return; }
+  if(saveDefaultAddress && address!==(CUSTOMER_DATA.profile?.address||'')){
+    const {error:profileError}=await supaClient.from('profiles').update({address,updated_at:new Date().toISOString()}).eq('id',AUTH_USER.id);
+    if(!profileError){ CUSTOMER_DATA.profile={...CUSTOMER_DATA.profile,address}; AUTH_PROFILE={...AUTH_PROFILE,address}; }
+  }
+  CUSTOMER_CART={}; closeModal(); CUSTOMER_TAB='orders'; await loadCustomerPortalData(); render();
+}
+function renderCustomerOrders(){
+  return `${sectionHeader('Đơn hàng của tôi','Theo dõi trạng thái giao hàng')}${CUSTOMER_DATA.orders.length?CUSTOMER_DATA.orders.map(order=>`<div class="order-row" style="border-left:4px solid ${statusOf(order.status).color};"><div style="flex:1;"><div class="order-name">Đơn ${String(order.id).slice(0,8).toUpperCase()}</div><div class="order-sub">📅 ${fmtDate(order.delivery_date)} ${order.delivery_time?`· ${String(order.delivery_time).slice(0,5)}`:''}</div><div class="order-items">${(order.customer_order_items||[]).map(item=>`${escapeHtml(item.product_name)} × ${item.quantity}`).join('<br>')}</div></div><div><span class="badge" style="color:${statusOf(order.status).color};background:${statusOf(order.status).color}1A;">${statusOf(order.status).label}</span><div class="order-total" style="text-align:right;margin-top:8px;">${order.package_id?'Đã trừ gói':vnd(order.total)}</div></div></div>`).join(''):`<div class="empty-state"><div class="empty-icon">🧾</div><div class="empty-title">Bạn chưa có đơn hàng</div></div>`}`;
+}
+function renderCustomerPackages(){
+  return `${sectionHeader('Gói của tôi','Số lượng được cập nhật ngay sau mỗi đơn')}${CUSTOMER_DATA.packages.length?CUSTOMER_DATA.packages.map(pkg=>`<div class="panel" style="margin-bottom:12px;"><div class="panel-title">${escapeHtml(pkg.package_name)}</div><div style="font-size:28px;font-weight:900;color:var(--green);margin:10px 0;">${pkg.remaining_qty}/${pkg.total_qty} ${escapeHtml(pkg.unit_label||'ly')}</div><div class="progress-track"><div class="progress-fill" style="width:${Math.max(0,Math.min(100,pkg.remaining_qty/pkg.total_qty*100))}%;"></div></div></div>`).join(''):`<div class="empty-state"><div class="empty-icon">🔁</div><div class="empty-title">Bạn chưa có gói đang hoạt động</div></div>`}`;
+}
+function renderCustomerAccount(){
+  const p=CUSTOMER_DATA.profile||{};
+  const phoneLocked=Boolean(AUTH_USER?.phone);
+  return `${sectionHeader('Tài khoản','Thông tin dùng khi giao hàng')}<div class="panel"><form onsubmit="saveCustomerProfile(event)"><div class="field"><span class="field-label">Họ và tên</span><input class="input" id="profileName" value="${escapeHtml(p.name||'')}" required></div><div class="field"><span class="field-label">Số điện thoại${phoneLocked?' đăng nhập':''}</span><input class="input" id="profilePhone" value="${escapeHtml(p.phone||localVietnamPhone(AUTH_USER?.phone||''))}" ${phoneLocked?'disabled':''} required>${phoneLocked?'<span class="field-hint">Liên hệ quản trị nếu bạn cần đổi số điện thoại đăng nhập.</span>':''}</div><div class="field"><span class="field-label">Địa chỉ mặc định</span><input class="input" id="profileAddress" value="${escapeHtml(p.address||'')}" required></div><button class="btn btn-solid">Lưu thông tin</button></form></div>`;
+}
+async function saveCustomerProfile(event){
+  event.preventDefault();
+  const name=document.getElementById('profileName').value.trim();
+  const address=document.getElementById('profileAddress').value.trim();
+  const phoneInput=document.getElementById('profilePhone').value.trim();
+  const normalized=normalizeVietnamPhone(phoneInput);
+  if(!name || !address || !normalized){ alert('Vui lòng nhập đầy đủ họ tên, số điện thoại hợp lệ và địa chỉ.'); return; }
+  const values={name,phone:localVietnamPhone(normalized),address,updated_at:new Date().toISOString()};
+  const {error}=await supaClient.from('profiles').update(values).eq('id',AUTH_USER.id); if(error){alert(error.message);return;} CUSTOMER_DATA.profile={...CUSTOMER_DATA.profile,...values}; AUTH_PROFILE={...AUTH_PROFILE,...values}; alert('Đã lưu thông tin.');
+}
+
+function renderPortalAdminTab(){
+  if(!PORTAL_ENABLED) return `${sectionHeader('Cổng khách hàng','Cần chạy bộ SQL thiết lập ở mục Đồng bộ dữ liệu')}<div class="empty-state"><div class="empty-icon">🌐</div><div class="empty-title">Cổng khách hàng chưa được bật</div><div class="empty-sub">Vào Đồng bộ dữ liệu, sao chép bộ SQL và chạy trong Supabase SQL Editor.</div><div style="margin-top:14px;"><button class="btn btn-solid" onclick="setTab('settings')">Mở hướng dẫn cài đặt</button></div></div>`;
+  return `${sectionHeader('Cổng khách hàng','Quản lý menu ngày, ưu đãi và tài khoản đặt hàng')}
+    <div class="portal-admin-grid">
+      <div class="panel"><div class="panel-title">📅 Đăng menu theo ngày</div><div class="field-row" style="margin-top:14px;"><div class="field"><span class="field-label">Ngày bán</span><input class="input" type="date" id="portalMenuDate" value="${todayISO()}"></div><div class="field"><span class="field-label">Tên menu</span><input class="input" id="portalMenuTitle" value="Menu sữa hạt"></div></div><div class="field"><span class="field-label">Chọn sản phẩm</span><div style="max-height:230px;overflow:auto;border:1px solid var(--line);border-radius:9px;padding:8px;">${DB.products.map(p=>`<label class="check-label" style="padding:6px;"><input type="checkbox" class="portal-menu-product" value="${p.id}" checked> ${escapeHtml(p.name)} · ${vnd(p.price)}</label>`).join('')}</div></div><button class="btn btn-solid" onclick="publishDailyMenu()">Đăng menu</button><div id="portalMenusList" style="margin-top:14px;"></div></div>
+      <div class="panel"><div class="panel-title">🏷 Mã giảm giá</div><div class="field-row" style="margin-top:14px;"><div class="field"><span class="field-label">Mã</span><input class="input" id="couponCode" placeholder="OYEN10"></div><div class="field"><span class="field-label">Giảm (%)</span><input class="input" type="number" min="1" max="100" id="couponValue" value="10"></div></div><div class="field"><span class="field-label">Đơn tối thiểu</span><input class="input" type="number" min="0" id="couponMin" value="0"></div><button class="btn btn-solid" onclick="createPortalCoupon()">Tạo mã</button><div id="portalCouponsList" style="margin-top:14px;"></div></div>
+    </div>
+    <div class="panel" style="margin-top:14px;"><div class="panel-title">👥 Tài khoản và gói của khách</div><p class="field-hint">Khách tự đăng ký tài khoản. Tại đây bạn có thể cấp gói đang bán cho từng người.</p><div id="portalCustomersList"><div class="loading">Đang tải...</div></div></div>`;
+}
+async function loadPortalAdminData(){
+  if(!PORTAL_ENABLED || !supaClient) return;
+  const [menus,coupons,profiles,packages]=await Promise.all([
+    supaClient.from('daily_menus').select('*,daily_menu_items(*)').order('menu_date',{ascending:false}),
+    supaClient.from('coupons').select('*').order('created_at',{ascending:false}),
+    supaClient.from('profiles').select('*').order('created_at',{ascending:false}),
+    supaClient.from('customer_packages').select('*').order('created_at',{ascending:false}),
+  ]);
+  PORTAL_ADMIN_DATA={menus:menus.data||[],coupons:coupons.data||[],profiles:profiles.data||[],packages:packages.data||[]};
+  renderPortalAdminLists();
+}
+function renderPortalAdminLists(){
+  const menus=document.getElementById('portalMenusList');
+  if(menus) menus.innerHTML=PORTAL_ADMIN_DATA.menus.length?PORTAL_ADMIN_DATA.menus.map(menu=>`<div class="portal-list-row"><span><strong>${fmtDate(menu.menu_date)}</strong><br>${escapeHtml(menu.title||'Menu')} · ${(menu.daily_menu_items||[]).length} món</span><button class="icon-btn" onclick="togglePortalMenu('${menu.id}',${!menu.is_open})">${menu.is_open?'🔓':'🔒'}</button></div>`).join(''):'<div class="field-hint">Chưa đăng menu.</div>';
+  const coupons=document.getElementById('portalCouponsList');
+  if(coupons) coupons.innerHTML=PORTAL_ADMIN_DATA.coupons.length?PORTAL_ADMIN_DATA.coupons.map(c=>`<div class="portal-list-row"><span><strong>${escapeHtml(c.code)}</strong> · giảm ${c.discount_value}%</span><button class="icon-btn" onclick="togglePortalCoupon('${escapeHtml(c.code)}',${!c.active})">${c.active?'✅':'⏸'}</button></div>`).join(''):'<div class="field-hint">Chưa có mã giảm giá.</div>';
+  const customers=document.getElementById('portalCustomersList');
+  if(customers) customers.innerHTML=PORTAL_ADMIN_DATA.profiles.filter(p=>p.role==='customer').length?PORTAL_ADMIN_DATA.profiles.filter(p=>p.role==='customer').map(profile=>{
+    const owned=PORTAL_ADMIN_DATA.packages.filter(pkg=>pkg.user_id===profile.id && pkg.status==='active');
+    return `<div class="portal-list-row" style="align-items:flex-start;"><div style="flex:1;"><strong>${escapeHtml(profile.name||profile.email||'Khách')}</strong><div class="field-hint">${escapeHtml(profile.phone||profile.email||'')}</div>${owned.map(pkg=>`<div class="field-hint" style="color:var(--green);">🔁 ${escapeHtml(pkg.package_name)}: ${pkg.remaining_qty}/${pkg.total_qty} ${escapeHtml(pkg.unit_label||'ly')}</div>`).join('')}</div><div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end;"><select class="input" id="portalPkg_${profile.id}" style="width:180px;"><option value="">Chọn gói...</option>${DB.packages.map(pkg=>`<option value="${pkg.id}">${escapeHtml(pkg.name)} · ${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</option>`).join('')}</select><button class="btn btn-ghost" onclick="assignPortalPackage('${profile.id}')">Cấp gói</button></div></div>`;
+  }).join(''):'<div class="field-hint">Chưa có khách hàng đăng ký.</div>';
+}
+async function publishDailyMenu(){
+  const menu_date=document.getElementById('portalMenuDate').value;
+  const title=document.getElementById('portalMenuTitle').value.trim()||'Menu sữa hạt';
+  const ids=[...document.querySelectorAll('.portal-menu-product:checked')].map(input=>input.value);
+  if(!menu_date || !ids.length){ alert('Vui lòng chọn ngày và ít nhất một sản phẩm.'); return; }
+  const {data:menu,error}=await supaClient.from('daily_menus').upsert({menu_date,title,is_open:true,created_by:AUTH_USER.id},{onConflict:'menu_date'}).select().single();
+  if(error){ alert(error.message); return; }
+  await supaClient.from('daily_menu_items').delete().eq('menu_id',menu.id);
+  const items=ids.map(id=>{const p=DB.products.find(item=>item.id===id);return {menu_id:menu.id,product_id:p.id,product_name:p.name,price:Number(p.price)||0,volume_ml:productVolumeMl(p),available:true};});
+  const inserted=await supaClient.from('daily_menu_items').insert(items); if(inserted.error){alert(inserted.error.message);return;} alert('Đã đăng menu cho ngày '+fmtDate(menu_date)+'.'); loadPortalAdminData();
+}
+async function togglePortalMenu(id,is_open){ const {error}=await supaClient.from('daily_menus').update({is_open}).eq('id',id); if(error)alert(error.message); else loadPortalAdminData(); }
+async function createPortalCoupon(){
+  const code=document.getElementById('couponCode').value.trim().toUpperCase(); const discount_value=Number(document.getElementById('couponValue').value)||0; const min_order=Number(document.getElementById('couponMin').value)||0;
+  if(!code || discount_value<=0 || discount_value>100){alert('Vui lòng nhập mã và phần trăm giảm từ 1–100.');return;}
+  const {error}=await supaClient.from('coupons').upsert({code,discount_type:'percent',discount_value,min_order,active:true}); if(error)alert(error.message); else {alert('Đã lưu mã giảm giá.');loadPortalAdminData();}
+}
+async function togglePortalCoupon(code,active){ const {error}=await supaClient.from('coupons').update({active}).eq('code',code); if(error)alert(error.message); else loadPortalAdminData(); }
+async function assignPortalPackage(userId){
+  const packageId=document.getElementById(`portalPkg_${userId}`).value; const pkg=DB.packages.find(item=>item.id===packageId); const profile=PORTAL_ADMIN_DATA.profiles.find(item=>item.id===userId);
+  if(!pkg){alert('Vui lòng chọn gói.');return;}
+  const record={user_id:userId,package_name:pkg.name,total_qty:Number(pkg.totalQty)||1,remaining_qty:Number(pkg.totalQty)||1,unit_label:pkg.unitLabel||'ly',price:Number(pkg.price)||0,status:'active'};
+  const {data,error}=await supaClient.from('customer_packages').insert(record).select().single(); if(error){alert(error.message);return;}
+  if(Number(pkg.price)>0){DB.subscriptionPayments.push({id:uid(),subscriberId:`portal:${data.id}`,packageId:pkg.id,customerId:userId,customerName:profile?.name||profile?.email||'Khách cổng web',packageName:pkg.name,amount:Number(pkg.price),kind:'dang_ky_moi',date:todayISO(),createdAt:new Date().toISOString()});persistSubscriptionPayments();}
+  alert('Đã cấp gói cho khách.'); loadPortalAdminData();
+}
+
+async function syncPortalOrdersToAdmin(){
+  if(!supaClient || AUTH_PROFILE?.role!=='admin') return;
+  const {data,error}=await supaClient.from('customer_orders').select('*,customer_order_items(*)');
+  if(error){ console.error('Không đồng bộ được đơn từ cổng khách',error); return; }
+  const portal=(data||[]).map(order=>({id:`portal_${order.id}`,portalOrderId:order.id,orderType:'order',customerId:order.user_id,customerName:order.customer_name||'Khách đặt online',phone:order.phone||'',address:order.address||'',branchId:order.branch_id||DB.branches[0]?.id||'',items:(order.customer_order_items||[]).map(item=>({productId:item.product_id,name:item.product_name,price:Number(item.unit_price)||0,volumeMl:Number(item.volume_ml)||330,qty:Number(item.quantity)||1})),total:Number(order.total)||0,subscriberId:order.package_id||null,subRestored:false,deliveryDate:order.delivery_date,deliveryTime:order.delivery_time?String(order.delivery_time).slice(0,5):'',status:order.status||'cho_xac_nhan',note:order.note||'',createdAt:order.created_at,orderPosition:Number(order.order_position)||nextOrderPosition()}));
+  DB.orders=DB.orders.filter(order=>!order.portalOrderId).concat(portal);
+  if(TAB==='orders' || TAB==='dashboard') renderMain();
 }
 
 function sectionHeader(title, sub, actionHtml){
@@ -969,6 +1621,8 @@ function renderDashboard(){
 
   const pendingConfirm = DB.orders.filter(o=>o.status==='cho_xac_nhan').length;
   const notDelivered = DB.orders.filter(o=>['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(o.status)).length;
+  const currentDebts = unpaidDebtOrders();
+  const currentDebtAmount = currentDebts.reduce((sum,order)=>sum+(Number(order.total)||0),0);
 
   const dateLabel = new Date().toLocaleDateString('vi-VN',{weekday:'long', day:'2-digit', month:'long', year:'numeric'});
   const alerts = lowSubs();
@@ -1054,6 +1708,10 @@ function renderDashboard(){
       </button>
       <button class="pending-chip" onclick="ordersFilter.status='cho_van_chuyen';ordersFilter.mode='all';setTab('orders')">
         <div><div class="pending-chip-label">Chờ vận chuyển</div><div class="pending-chip-value">${notDelivered}</div></div>
+        <span class="pending-chip-arrow">›</span>
+      </button>
+      <button class="pending-chip" onclick="setTab('debts')">
+        <div><div class="pending-chip-label">Công nợ chưa thu</div><div class="pending-chip-value">${vnd(currentDebtAmount)}</div><div class="field-hint">${currentDebts.length} đơn</div></div>
         <span class="pending-chip-arrow">›</span>
       </button>
     </div>
@@ -1249,6 +1907,9 @@ function refreshOrdersList(){
           : ['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(o.status)
             ? `<button class="btn btn-ghost" style="padding:7px 10px;font-size:12.5px;" onclick="markOrderDelivered('${o.id}')">✓ Đã vận chuyển</button>`
             : `<span class="badge" style="color:${st.color};background:${st.color}1A;">${st.label}</span>`}
+        ${isDebtTrackableOrder(o)?(isOrderPaid(o)
+          ? `<span class="badge" style="color:var(--green);background:var(--green)1A;">✓ Đã thanh toán</span>`
+          : `<button class="btn btn-solid" style="padding:7px 10px;font-size:12.5px;background:var(--red);" onclick="confirmOrderPaid('${o.id}')">💳 Duyệt đã thanh toán</button>`):''}
       </div>
       <div style="display:flex;gap:2px;">
         <button class="icon-btn" onclick="openOrderModal('${o.id}')" title="Sửa">✎</button>
@@ -1285,7 +1946,7 @@ function orderDragEnd(){
   draggedOrderId='';
   clearOrderDragStyles();
 }
-function reorderOrders(sourceId,targetId){
+async function reorderOrders(sourceId,targetId){
   if(!sourceId || !targetId || sourceId===targetId) return;
   const ordered=[...DB.orders].sort(compareOrderPosition);
   const fromIndex=ordered.findIndex(order=>order.id===sourceId);
@@ -1299,6 +1960,10 @@ function reorderOrders(sourceId,targetId){
   draggedOrderId='';
   touchedOrderId='';
   persistOrders();
+  if(supaClient){
+    const portalUpdates=ordered.filter(order=>order.portalOrderId).map(order=>supaClient.from('customer_orders').update({order_position:order.orderPosition}).eq('id',order.portalOrderId));
+    if(portalUpdates.length) await Promise.all(portalUpdates);
+  }
   refreshOrdersList();
 }
 function orderTouchStart(event,id){
@@ -1345,8 +2010,10 @@ function toggleAllVisibleOrders(checked){
 }
 function arrangeOrderShipping(id){ changeOrderStatus(id,'dang_giao'); }
 function markOrderDelivered(id){ changeOrderStatus(id,'hoan_thanh'); }
-function bulkUpdateOrderStatus(status){
+async function bulkUpdateOrderStatus(status){
   if(!selectedOrderIds.size) return;
+  const portalIds=DB.orders.filter(order=>selectedOrderIds.has(order.id) && order.portalOrderId && ((status==='dang_giao'&&order.status==='cho_xac_nhan')||(status==='hoan_thanh'&&['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(order.status)))).map(order=>order.portalOrderId);
+  if(portalIds.length){ const {error}=await supaClient.from('customer_orders').update({status,updated_at:new Date().toISOString()}).in('id',portalIds); if(error){alert(error.message);return;} }
   DB.orders.forEach(order=>{
     if(!selectedOrderIds.has(order.id)) return;
     if(status==='dang_giao' && order.status!=='cho_xac_nhan') return;
@@ -1357,8 +2024,10 @@ function bulkUpdateOrderStatus(status){
   persistOrders();
   renderMain();
 }
-function bulkDeleteOrders(){
+async function bulkDeleteOrders(){
   if(!selectedOrderIds.size || !confirm(`Xóa ${selectedOrderIds.size} đơn hàng đã chọn?`)) return;
+  const portalOrders=DB.orders.filter(o=>selectedOrderIds.has(o.id) && o.portalOrderId);
+  for(const order of portalOrders){ const {error}=await supaClient.rpc('admin_delete_customer_order',{p_order_id:order.portalOrderId}); if(error){alert(error.message);return;} }
   DB.orders.filter(o=>selectedOrderIds.has(o.id)).forEach(o=>{
     if(o.subscriberId && !o.subRestored){
       const qty=o.items.reduce((sum,item)=>sum+item.qty,0);
@@ -1378,8 +2047,12 @@ function restoreSubscriberQty(subscriberId, qty){
   s.remainingQty = Math.min(cap, s.remainingQty + qty);
   persistSubscribers();
 }
-function changeOrderStatus(id, status){
+async function changeOrderStatus(id, status){
   const o = DB.orders.find(x=>x.id===id); if(!o) return;
+  if(o.portalOrderId && supaClient){
+    const {error}=await supaClient.from('customer_orders').update({status,updated_at:new Date().toISOString()}).eq('id',o.portalOrderId);
+    if(error){alert(error.message);return;}
+  }
   if(status==='da_huy' && o.subscriberId && !o.subRestored){
     const qty = o.items.reduce((s,it)=>s+it.qty,0);
     restoreSubscriberQty(o.subscriberId, qty);
@@ -1390,9 +2063,15 @@ function changeOrderStatus(id, status){
   persistOrders();
   if(TAB==='orders' || TAB==='dashboard') renderMain(); else refreshOrdersList();
 }
-function deleteOrder(id){
+async function deleteOrder(id){
   if(!confirm('Xóa đơn hàng này?')) return;
   const o = DB.orders.find(x=>x.id===id);
+  if(o?.portalOrderId && supaClient){
+    const {error}=await supaClient.rpc('admin_delete_customer_order',{p_order_id:o.portalOrderId});
+    if(error){alert(error.message);return;}
+    await syncPortalOrdersToAdmin();
+    return;
+  }
   if(o && o.subscriberId && !o.subRestored){
     const qty = o.items.reduce((s,it)=>s+it.qty,0);
     restoreSubscriberQty(o.subscriberId, qty);
@@ -1785,6 +2464,8 @@ function submitOrder(e, orderId){
     note: document.getElementById('orderNote').value,
     createdAt: order?.createdAt || new Date().toISOString(),
     orderPosition: order?.orderPosition ?? nextOrderPosition(),
+    paymentStatus: order && Number(order.total)===Number(total) && order.customerId===customerId ? (order.paymentStatus||'chua_thanh_toan') : 'chua_thanh_toan',
+    paidAt: order && Number(order.total)===Number(total) && order.customerId===customerId ? (order.paidAt||null) : null,
   };
   if(order) DB.orders = DB.orders.map(o=>o.id===orderId?newOrder:o);
   else {
@@ -1798,10 +2479,127 @@ function submitOrder(e, orderId){
   render();
 }
 
+/* ================= CUSTOMER DEBTS ================= */
+function orderCupCount(order){
+  return (order?.items||[]).reduce((sum,item)=>sum+(Number(item.qty)||0),0);
+}
+function isDebtTrackableOrder(order){
+  return order?.status==='hoan_thanh' && Boolean(order.customerId) && order.orderType!=='tai_cho' && !order.subscriberId && Number(order.total)>0;
+}
+function isOrderPaid(order){ return order?.paymentStatus==='da_thanh_toan'; }
+function unpaidDebtOrders(){ return DB.orders.filter(order=>isDebtTrackableOrder(order) && !isOrderPaid(order)); }
+function paidDebtOrders(){ return DB.orders.filter(order=>isDebtTrackableOrder(order) && isOrderPaid(order)); }
+function groupDebtOrders(orders){
+  const groups=new Map();
+  orders.forEach(order=>{
+    const customer=DB.customers.find(item=>item.id===order.customerId);
+    const key=order.customerId;
+    const group=groups.get(key)||{
+      customerId:key,name:customer?.name||order.customerName||'Khách hàng',
+      phone:customer?.phone||order.phone||'',address:customer?.address||order.address||'',
+      orders:[],qty:0,amount:0,
+    };
+    group.orders.push(order);
+    group.qty+=orderCupCount(order);
+    group.amount+=Number(order.total)||0;
+    groups.set(key,group);
+  });
+  return [...groups.values()].sort((a,b)=>b.amount-a.amount || a.name.localeCompare(b.name,'vi'));
+}
+function setDebtView(view){ debtFilter.view=view; renderMain(); }
+function filterDebtCards(){
+  const query=(debtFilter.search||'').trim().toLowerCase();
+  let visible=0;
+  document.querySelectorAll('.debt-customer-card').forEach(card=>{
+    const show=!query || (card.dataset.search||'').includes(query);
+    card.style.display=show?'':'none'; if(show) visible++;
+  });
+  const empty=document.getElementById('debtSearchEmpty');
+  if(empty) empty.style.display=visible?'none':'block';
+}
+function openCustomerDebt(customerId){
+  const customer=DB.customers.find(item=>item.id===customerId);
+  closeModal(); debtFilter.view='unpaid'; debtFilter.search=customer?.phone||customer?.name||''; setTab('debts');
+}
+function renderDebtsTab(){
+  const unpaid=unpaidDebtOrders();
+  const paid=paidDebtOrders();
+  const totalAmount=unpaid.reduce((sum,order)=>sum+(Number(order.total)||0),0);
+  const totalQty=unpaid.reduce((sum,order)=>sum+orderCupCount(order),0);
+  const customerCount=new Set(unpaid.map(order=>order.customerId)).size;
+  const source=debtFilter.view==='paid'?paid:unpaid;
+  const query=(debtFilter.search||'').trim().toLowerCase();
+  const groups=groupDebtOrders(source);
+  const visibleGroups=groups.filter(group=>!query || group.name.toLowerCase().includes(query) || group.phone.includes(query));
+  const history=[...DB.customerPayments].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).slice(0,12);
+  return `${sectionHeader('Công nợ khách hàng','Chỉ tính đơn đã vận chuyển, không gồm đơn tại chỗ và đơn đã trừ gói')}
+    <div class="stats-row">
+      ${statCard('💰','var(--icon-red)','Tổng tiền còn nợ',vnd(totalAmount))}
+      ${statCard('🧾','var(--icon-gold)','Đơn chưa thanh toán',unpaid.length)}
+      ${statCard('🥛','var(--icon-blue)','Số ly còn nợ',totalQty.toLocaleString('vi-VN'))}
+    </div>
+    <div class="panel" style="margin-bottom:18px;">
+      <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+        <div class="segmented"><button class="${debtFilter.view==='unpaid'?'active':''}" onclick="setDebtView('unpaid')">Chưa thanh toán (${unpaid.length})</button><button class="${debtFilter.view==='paid'?'active':''}" onclick="setDebtView('paid')">Đã thanh toán (${paid.length})</button></div>
+        <div class="search-wrap" style="margin-left:auto;max-width:320px;"><span class="search-icon">🔍</span><input class="input" placeholder="Tìm tên / SĐT khách..." value="${escapeHtml(debtFilter.search)}" oninput="debtFilter.search=this.value;filterDebtCards()"></div>
+      </div>
+      ${debtFilter.view==='unpaid'?`<div class="field-hint" style="margin-top:10px;">${customerCount} khách đang có công nợ. Khi nhận đủ tiền, bấm “Duyệt đã thanh toán” cho từng đơn hoặc toàn bộ đơn của khách.</div>`:''}
+    </div>
+    ${groups.length===0?`<div class="empty-state"><div class="empty-icon">${debtFilter.view==='paid'?'✅':'💳'}</div><div class="empty-title">${debtFilter.view==='paid'?'Chưa có đơn đã thanh toán':'Không có công nợ cần thu'}</div></div>`:
+      groups.map(group=>`<div class="panel debt-customer-card" data-search="${escapeHtml(`${group.name} ${group.phone}`.toLowerCase())}" style="margin-bottom:14px;${query && !(`${group.name} ${group.phone}`.toLowerCase().includes(query))?'display:none;':''}">
+        <div class="section-header" style="margin-bottom:12px;align-items:flex-start;">
+          <div><div class="panel-title" style="margin:0;">${escapeHtml(group.name)}</div><div class="field-hint">${group.phone?`📞 ${escapeHtml(group.phone)} · `:''}${group.address?`📍 ${escapeHtml(group.address)}`:''}</div></div>
+          <div style="text-align:right;"><strong style="font-size:20px;color:${debtFilter.view==='paid'?'var(--green)':'var(--red)'};">${vnd(group.amount)}</strong><div class="field-hint">${group.orders.length} đơn · ${group.qty} ly</div>${debtFilter.view==='unpaid'?`<button class="btn btn-solid" style="margin-top:8px;padding:7px 10px;" onclick="settleCustomerDebts('${group.customerId}')">Duyệt tất cả đã thanh toán</button>`:''}</div>
+        </div>
+        <div style="overflow-x:auto;"><table class="cost-table"><thead><tr><th>Ngày giao</th><th>Sản phẩm</th><th class="cost-right">Số ly</th><th class="cost-right">Số tiền</th><th>Thanh toán</th></tr></thead><tbody>
+          ${group.orders.sort((a,b)=>String(b.deliveryDate||'').localeCompare(String(a.deliveryDate||''))).map(order=>`<tr><td>${fmtDate(order.deliveryDate)}</td><td>${escapeHtml((order.items||[]).map(item=>`${item.name} × ${item.qty}`).join(', '))}</td><td class="cost-right">${orderCupCount(order)}</td><td class="cost-right"><strong>${vnd(order.total)}</strong></td><td>${isOrderPaid(order)?`<span class="badge" style="color:var(--green);background:var(--green)1A;">Đã thanh toán</span><br><span class="field-hint">${order.paidAt?new Date(order.paidAt).toLocaleString('vi-VN'):''}</span><br><button class="btn btn-ghost" style="padding:5px 8px;margin-top:5px;" onclick="reopenOrderDebt('${order.id}')">Hoàn tác</button>`:`<button class="btn btn-solid" style="padding:7px 10px;" onclick="confirmOrderPaid('${order.id}')">Duyệt đã thanh toán</button>`}</td></tr>`).join('')}
+        </tbody></table></div>
+      </div>`).join('')}
+    ${groups.length?`<div id="debtSearchEmpty" class="empty-state" style="display:${visibleGroups.length?'none':'block'};"><div class="empty-icon">🔍</div><div class="empty-title">Không tìm thấy khách phù hợp</div></div>`:''}
+    ${history.length?`<div class="panel" style="margin-top:18px;"><div class="panel-title">Lịch sử duyệt thanh toán gần đây</div><div style="margin-top:10px;">${history.map(item=>`<div class="portal-list-row"><span><strong>${escapeHtml(item.customerName||'Khách hàng')}</strong><br><span class="field-hint">${new Date(item.createdAt).toLocaleString('vi-VN')} · ${item.qty||0} ly · ${item.kind==='reopened'?'Hoàn tác thanh toán':'Đã thanh toán'}</span></span><strong style="color:${item.kind==='reopened'?'var(--red)':'var(--green)'};">${item.kind==='reopened'?'- ':''}${vnd(item.amount)}</strong></div>`).join('')}</div></div>`:''}`;
+}
+function applyOrderPayment(order,kind){
+  const paid=kind==='paid';
+  order.paymentStatus=paid?'da_thanh_toan':'chua_thanh_toan';
+  order.paidAt=paid?new Date().toISOString():null;
+  DB.customerPayments.push({
+    id:uid(),orderId:order.id,customerId:order.customerId,customerName:order.customerName,
+    amount:Number(order.total)||0,qty:orderCupCount(order),kind:paid?'paid':'reopened',createdAt:new Date().toISOString(),
+  });
+}
+function confirmOrderPaid(id){
+  const order=DB.orders.find(item=>item.id===id);
+  if(!order || isOrderPaid(order)) return;
+  if(!confirm(`Xác nhận đã thu đủ ${vnd(order.total)} của ${order.customerName}?`)) return;
+  applyOrderPayment(order,'paid');
+  persistOrders(); persistCustomerPayments(); renderMain();
+}
+function settleCustomerDebts(customerId){
+  const orders=unpaidDebtOrders().filter(order=>order.customerId===customerId);
+  if(!orders.length) return;
+  const amount=orders.reduce((sum,order)=>sum+(Number(order.total)||0),0);
+  const name=orders[0].customerName||'khách hàng';
+  if(!confirm(`Xác nhận ${name} đã thanh toán đủ ${orders.length} đơn, tổng ${vnd(amount)}?`)) return;
+  orders.forEach(order=>applyOrderPayment(order,'paid'));
+  persistOrders(); persistCustomerPayments(); renderMain();
+}
+function reopenOrderDebt(id){
+  const order=DB.orders.find(item=>item.id===id);
+  if(!order || !isOrderPaid(order)) return;
+  if(!confirm(`Chuyển đơn ${fmtDate(order.deliveryDate)} của ${order.customerName} về chưa thanh toán?`)) return;
+  applyOrderPayment(order,'reopened');
+  persistOrders(); persistCustomerPayments(); renderMain();
+}
+
 /* ================= CUSTOMERS ================= */
 function customerStats(id){
   const co = DB.orders.filter(o=>o.customerId===id && o.status!=='da_huy');
-  return { count: co.length, spent: co.reduce((s,o)=>s+o.total,0) };
+  const debts=unpaidDebtOrders().filter(order=>order.customerId===id);
+  return {
+    count:co.length,spent:co.reduce((s,o)=>s+o.total,0),
+    debtOrders:debts.length,debtQty:debts.reduce((sum,order)=>sum+orderCupCount(order),0),
+    debtAmount:debts.reduce((sum,order)=>sum+(Number(order.total)||0),0),
+  };
 }
 function renderCustomersTab(){
   return `
@@ -1834,6 +2632,7 @@ function refreshCustomersList(){
         <div><strong style="color:var(--green)">${vnd(st.spent)}</strong></div>
         ${activeSubs>0?`<div><strong style="color:var(--blue)">${activeSubs}</strong> <span style="color:var(--ink-faint)">gói</span></div>`:''}
       </div>
+      ${st.debtOrders?`<div style="margin-top:12px;padding:9px 10px;border-radius:9px;background:var(--icon-red);color:var(--red);font-size:12.5px;font-weight:700;">Còn nợ ${st.debtOrders} đơn · ${st.debtQty} ly · ${vnd(st.debtAmount)}</div>`:''}
     </div>`;
   }).join('')}</div>`;
 }
@@ -1892,7 +2691,9 @@ function openCustomerDetail(id){
     <div class="detail-stats">
       <div class="detail-stat"><div class="detail-stat-label">Tổng đơn</div><div class="detail-stat-value">${st.count}</div></div>
       <div class="detail-stat"><div class="detail-stat-label">Tổng chi tiêu</div><div class="detail-stat-value" style="color:var(--green)">${vnd(st.spent)}</div></div>
+      <div class="detail-stat"><div class="detail-stat-label">Công nợ</div><div class="detail-stat-value" style="color:var(--red)">${vnd(st.debtAmount)}</div><div class="field-hint">${st.debtOrders} đơn · ${st.debtQty} ly</div></div>
     </div>
+    ${st.debtOrders?`<button class="btn btn-solid" style="margin-bottom:16px;" onclick="openCustomerDebt('${c.id}')">Xem và duyệt công nợ</button>`:''}
     ${custSubs.length>0 ? `<div style="font-size:13px;font-weight:700;margin-bottom:8px;">Gói đăng ký</div>
       <div style="margin-bottom:16px;">${custSubs.map(s=>{
         const pkg = packageOf(s.packageId) || {};
@@ -2581,44 +3382,33 @@ function deleteBranch(id){
 /* ================= SETTINGS / SUPABASE SYNC ================= */
 function renderSettingsTab(){
   return `
-    ${sectionHeader('Đồng bộ dữ liệu', 'Kết nối Supabase để đồng bộ dữ liệu giữa nhiều thiết bị')}
+    ${sectionHeader('Đồng bộ dữ liệu', 'Supabase cho ứng dụng quản trị OYEN')}
     <div class="panel settings-block">
       <div class="panel-title">Trạng thái kết nối</div>
       ${supaReady
-        ? `<span class="conn-badge conn-ok">🟢 Đã kết nối Supabase</span><p style="font-size:13px;color:var(--ink-soft);margin-top:10px;">Dữ liệu đang được lưu trên Supabase và tự động đồng bộ giữa các thiết bị đăng nhập cùng một dự án.</p>`
+        ? `<span class="conn-badge conn-ok">🟢 Đã kết nối Supabase</span><p style="font-size:13px;color:var(--ink-soft);margin-top:10px;">Dữ liệu quản trị, đơn hàng và công nợ đang được lưu trên Supabase và tự động đồng bộ giữa các thiết bị.</p>`
         : `<span class="conn-badge conn-off">⚪ Chưa kết nối Supabase</span><p style="font-size:13px;color:var(--ink-soft);margin-top:10px;">Ứng dụng đang lưu dữ liệu cục bộ (chỉ trên thiết bị/phiên hiện tại). Làm theo các bước bên dưới để bật đồng bộ nhiều thiết bị qua Supabase.</p>`
       }
     </div>
     <div class="panel settings-block">
-      <h4>Bước 1 — Tạo dự án Supabase</h4>
-      <p style="font-size:13px;color:var(--ink-soft);">Tạo một dự án miễn phí tại supabase.com, sau đó vào mục SQL Editor và chạy đoạn SQL sau để tạo bảng lưu dữ liệu:</p>
-      <div class="code-box">create table if not exists nuts_kv (
-  key text primary key,
-  value jsonb not null,
-  updated_at timestamptz default now()
-);
-
-alter table nuts_kv enable row level security;
-
-create policy "Cho phép đọc/ghi bằng anon key"
-  on nuts_kv for all
-  using (true) with check (true);
-
-alter publication supabase_realtime add table nuts_kv;</div>
-      <p class="field-hint">Lưu ý: chính sách trên cho phép bất kỳ ai có anon key đọc/ghi dữ liệu — phù hợp cho một cửa hàng nhỏ tự quản lý, không nên dùng cho dữ liệu nhạy cảm cần bảo mật cao.</p>
+      <h4>Bước 1 — Không cần bật tài khoản khách</h4>
+      <p style="font-size:13px;color:var(--ink-soft);">Bạn có thể để <strong>Phone provider</strong> tắt. File này chỉ dùng cho quản trị nội bộ và không có giao diện đăng ký tài khoản khách hàng.</p>
     </div>
     <div class="panel settings-block">
-      <h4>Bước 2 — Điền khóa kết nối vào file</h4>
-      <p style="font-size:13px;color:var(--ink-soft);">Mở file HTML này bằng trình soạn thảo văn bản, tìm 2 dòng gần đầu thẻ &lt;script&gt;:</p>
-      <div class="code-box">const SUPABASE_URL = '';
-const SUPABASE_ANON_KEY = '';</div>
-      <p style="font-size:13px;color:var(--ink-soft);">Điền URL dự án và anon public key (lấy trong Project Settings → API của Supabase) vào giữa hai dấu nháy đơn, lưu file lại và tải lên nơi lưu trữ (Google Drive, hosting tĩnh...). Mọi thiết bị mở cùng file này (đã điền khóa) sẽ tự động thấy cùng một dữ liệu.</p>
+      <h4>Bước 2 — Cài đặt cơ sở dữ liệu và phân quyền</h4>
+      <p style="font-size:13px;color:var(--ink-soft);">Mở <strong>Supabase → SQL Editor → New query</strong>, sao chép đoạn dưới đây, dán vào và nhấn Run. Lệnh này chỉ cấu hình bảng dữ liệu quản trị và không xóa đơn hàng hiện có.</p>
+      <button class="btn btn-solid" onclick="copyPortalSetupSQL()">📋 Sao chép toàn bộ SQL</button>
+      <div class="code-box" style="max-height:360px;overflow:auto;white-space:pre;">${escapeHtml(ADMIN_SETUP_SQL)}</div>
     </div>
     <div class="panel settings-block">
-      <h4>Cơ sở đang quản lý</h4>
-      <p style="font-size:13px;color:var(--ink-soft);">Mỗi đơn hàng có thể gắn với 1 cơ sở để tách biệt số liệu giữa các chi nhánh. Quản lý cơ sở tại mục "Cơ sở" trên thanh điều hướng.</p>
+      <h4>Bước 3 — Kiểm tra công nợ</h4>
+      <p style="font-size:13px;color:var(--ink-soft);">Tạo một đơn cho khách, chuyển đơn qua <strong>Sắp xếp vận chuyển → Đã vận chuyển</strong>. Sau đó mở <strong>Thêm → Công nợ</strong>; đơn phải xuất hiện với số ly và số tiền chưa thanh toán.</p>
     </div>
   `;
+}
+async function copyPortalSetupSQL(){
+  try{ await navigator.clipboard.writeText(ADMIN_SETUP_SQL); alert('Đã sao chép toàn bộ SQL.'); }
+  catch(error){ alert('Trình duyệt không cho sao chép tự động. Hãy bôi đen đoạn SQL và sao chép thủ công.'); }
 }
 
 /* ================= START ================= */
