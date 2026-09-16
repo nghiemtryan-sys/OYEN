@@ -898,6 +898,7 @@ let ordersFilter = { mode:'all', from: todayISO(), to: todayISO(), status:'all',
 let selectedOrderIds = new Set();
 let customersFilter = { search:'' };
 let productsFilter = { search:'' };
+let recipesFilter = { search:'' };
 let debtFilter = { search:'', view:'unpaid' };
 let dashFilter = { mode:'today', from: todayISO(), to: todayISO(), branch:'all' };
 let draggedOrderId = '';
@@ -999,6 +1000,14 @@ async function loadAdminData(){
     ordersChanged=true;
     await saveKey('nuts:debt_baseline_paid_v1', true);
   }
+  // Đơn đã trừ từ gói không phát sinh công nợ: luôn xem là đã thanh toán.
+  DB.orders.forEach(order=>{
+    if(order.subscriberId && order.paymentStatus!=='da_thanh_toan'){
+      order.paymentStatus='da_thanh_toan';
+      order.paidAt=order.paidAt||order.createdAt||new Date().toISOString();
+      ordersChanged=true;
+    }
+  });
   migrateRecipeIngredients();
   if(pkgs && subr){
     DB.packages = pkgs; DB.subscribers = subr;
@@ -1529,7 +1538,7 @@ async function syncPortalOrdersToAdmin(){
   if(!supaClient || AUTH_PROFILE?.role!=='admin') return;
   const {data,error}=await supaClient.from('customer_orders').select('*,customer_order_items(*)');
   if(error){ console.error('Không đồng bộ được đơn từ cổng khách',error); return; }
-  const portal=(data||[]).map(order=>({id:`portal_${order.id}`,portalOrderId:order.id,orderType:'order',customerId:order.user_id,customerName:order.customer_name||'Khách đặt online',phone:order.phone||'',address:order.address||'',branchId:order.branch_id||DB.branches[0]?.id||'',items:(order.customer_order_items||[]).map(item=>({productId:item.product_id,name:item.product_name,price:Number(item.unit_price)||0,volumeMl:Number(item.volume_ml)||330,qty:Number(item.quantity)||1})),total:Number(order.total)||0,subscriberId:order.package_id||null,subRestored:false,deliveryDate:order.delivery_date,deliveryTime:order.delivery_time?String(order.delivery_time).slice(0,5):'',status:order.status||'cho_xac_nhan',note:order.note||'',createdAt:order.created_at,orderPosition:Number(order.order_position)||nextOrderPosition()}));
+  const portal=(data||[]).map(order=>({id:`portal_${order.id}`,portalOrderId:order.id,orderType:'order',customerId:order.user_id,customerName:order.customer_name||'Khách đặt online',phone:order.phone||'',address:order.address||'',branchId:order.branch_id||DB.branches[0]?.id||'',items:(order.customer_order_items||[]).map(item=>({productId:item.product_id,name:item.product_name,price:Number(item.unit_price)||0,volumeMl:Number(item.volume_ml)||330,qty:Number(item.quantity)||1})),total:Number(order.total)||0,subscriberId:order.package_id||null,subRestored:false,deliveryDate:order.delivery_date,deliveryTime:order.delivery_time?String(order.delivery_time).slice(0,5):'',status:order.status||'cho_xac_nhan',note:order.note||'',createdAt:order.created_at,orderPosition:Number(order.order_position)||nextOrderPosition(),paymentStatus:order.package_id?'da_thanh_toan':'chua_thanh_toan',paidAt:order.package_id?order.created_at:null}));
   DB.orders=DB.orders.filter(order=>!order.portalOrderId).concat(portal);
   if(TAB==='orders' || TAB==='dashboard') renderMain();
 }
@@ -1781,15 +1790,53 @@ function preparationRows(){
     const product=DB.products.find(p=>p.id===item.productId);
     const volumeMl=Number(item.volumeMl)||productVolumeMl(product);
     const key=`${item.productId||normalizedName(item.name)}|${volumeMl}`;
-    const current=grouped.get(key)||{name:item.name||product?.name||'Sản phẩm',qty:0,ml:0,volumeMl};
+    const current=grouped.get(key)||{productId:item.productId||'',name:item.name||product?.name||'Sản phẩm',qty:0,ml:0,volumeMl};
     current.qty+=Number(item.qty)||0;
     current.ml+=(Number(item.qty)||0)*volumeMl;
     grouped.set(key,current);
   }));
-  return [...grouped.values()].sort((a,b)=>b.qty-a.qty || a.name.localeCompare(b.name,'vi'));
+  return [...grouped.values()].map(row=>{
+    const recipe=recipeOfProduct(row.productId);
+    return {...row,recipe,ingredients:preparationIngredients(row,recipe)};
+  }).sort((a,b)=>b.qty-a.qty || a.name.localeCompare(b.name,'vi'));
+}
+function recipeBatchVolumeMl(recipe,row){
+  if(!recipe) return 0;
+  const text=String(recipe.yield||'').toLowerCase().replace(',', '.');
+  const liters=text.match(/(\d+(?:\.\d+)?)\s*(?:lít|lit)\b/);
+  if(liters) return Number(liters[1])*1000;
+  const ml=text.match(/(\d+(?:\.\d+)?)\s*ml\b/);
+  const yieldCount=Math.max(1,Number(recipe.yieldCount)||1);
+  if(ml) return Number(ml[1])*(yieldCount>1?yieldCount:1);
+  return yieldCount*(Number(row?.volumeMl)||330);
+}
+function preparationIngredients(row,recipe){
+  if(!recipe) return [];
+  const batchMl=recipeBatchVolumeMl(recipe,row);
+  const multiplier=batchMl>0 ? row.ml/batchMl : row.qty/Math.max(1,Number(recipe.yieldCount)||1);
+  return (recipe.ingredients||[]).map(ingredient=>{
+    const material=ingredientMaterial(ingredient);
+    const grams=ingredient.grams!=null?Number(ingredient.grams)||0:parseGrams(ingredient.amount);
+    return {key:material?.id||normalizedName(material?.name||ingredient.name),name:material?.name||ingredient.name||'Nguyên liệu',grams:grams*multiplier};
+  }).filter(item=>item.grams>0);
+}
+function formatPreparationWeight(grams){
+  const value=Number(grams)||0;
+  if(value>=1000) return `${(value/1000).toLocaleString('vi-VN',{maximumFractionDigits:2})} kg`;
+  return `${value.toLocaleString('vi-VN',{maximumFractionDigits:1})} g`;
+}
+function preparationIngredientTotals(rows){
+  const totals=new Map();
+  rows.forEach(row=>(row.ingredients||[]).forEach(item=>{
+    const current=totals.get(item.key)||{name:item.name,grams:0};
+    current.grams+=item.grams;
+    totals.set(item.key,current);
+  }));
+  return [...totals.values()].sort((a,b)=>b.grams-a.grams || a.name.localeCompare(b.name,'vi'));
 }
 function renderPreparationSummary(){
   const rows=preparationRows();
+  const ingredientTotals=preparationIngredientTotals(rows);
   const totalQty=rows.reduce((sum,row)=>sum+row.qty,0);
   const totalMl=rows.reduce((sum,row)=>sum+row.ml,0);
   return `<div class="panel" style="margin-bottom:18px;">
@@ -1803,14 +1850,18 @@ function renderPreparationSummary(){
     ${rows.length===0
       ? `<div style="font-size:13px;color:var(--ink-faint);padding:8px 0;">Không có sản phẩm nào đang chờ chuẩn bị trong khoảng đã chọn.</div>`
       : `<div style="overflow-x:auto;"><table class="cost-table">
-          <thead><tr><th>Sản phẩm</th><th class="cost-right">Số lượng</th><th class="cost-right">Dung tích/ly</th><th class="cost-right">Tổng cần làm</th></tr></thead>
+          <thead><tr><th>Sản phẩm</th><th class="cost-right">Số lượng</th><th class="cost-right">Dung tích/ly</th><th class="cost-right">Tổng cần làm</th><th>Định lượng theo công thức</th></tr></thead>
           <tbody>${rows.map(row=>`<tr>
             <td><strong>${escapeHtml(row.name)}</strong></td>
             <td class="cost-right"><strong>${row.qty.toLocaleString('vi-VN')} ly</strong></td>
             <td class="cost-right">${row.volumeMl.toLocaleString('vi-VN')} ml</td>
             <td class="cost-right"><strong style="color:var(--green);">${row.ml.toLocaleString('vi-VN')} ml</strong></td>
+            <td>${row.recipe
+              ? (row.ingredients.length?row.ingredients.map(item=>`${escapeHtml(item.name)}: <strong>${formatPreparationWeight(item.grams)}</strong>`).join('<br>'):`<span style="color:var(--ink-faint);">Công thức chưa có định lượng</span>`)
+              : `<span style="color:var(--red);">Chưa liên kết công thức</span>`}</td>
           </tr>`).join('')}</tbody>
-        </table></div>`}
+        </table></div>
+        ${ingredientTotals.length?`<div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--line-soft);"><div class="panel-title" style="font-size:13.5px;margin-bottom:8px;">🧺 Tổng nguyên liệu cần chuẩn bị</div><div style="display:flex;gap:8px;flex-wrap:wrap;">${ingredientTotals.map(item=>`<span class="material-chip">${escapeHtml(item.name)}: <strong>${formatPreparationWeight(item.grams)}</strong></span>`).join('')}</div></div>`:''}`}
   </div>`;
 }
 function refreshPreparationSummary(){
@@ -1907,9 +1958,11 @@ function refreshOrdersList(){
           : ['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(o.status)
             ? `<button class="btn btn-ghost" style="padding:7px 10px;font-size:12.5px;" onclick="markOrderDelivered('${o.id}')">✓ Đã vận chuyển</button>`
             : `<span class="badge" style="color:${st.color};background:${st.color}1A;">${st.label}</span>`}
-        ${isDebtTrackableOrder(o)?(isOrderPaid(o)
-          ? `<span class="badge" style="color:var(--green);background:var(--green)1A;">✓ Đã thanh toán</span>`
-          : `<button class="btn btn-solid" style="padding:7px 10px;font-size:12.5px;background:var(--red);" onclick="confirmOrderPaid('${o.id}')">💳 Duyệt đã thanh toán</button>`):''}
+        ${o.subscriberId
+          ? `<span class="badge" style="color:var(--green);background:var(--green)1A;">✓ Đã thanh toán bằng gói</span>`
+          : (isDebtTrackableOrder(o)?(isOrderPaid(o)
+            ? `<span class="badge" style="color:var(--green);background:var(--green)1A;">✓ Đã thanh toán</span>`
+            : `<button class="btn btn-solid" style="padding:7px 10px;font-size:12.5px;background:var(--red);" onclick="confirmOrderPaid('${o.id}')">💳 Duyệt đã thanh toán</button>`):'')}
       </div>
       <div style="display:flex;gap:2px;">
         <button class="icon-btn" onclick="openOrderModal('${o.id}')" title="Sửa">✎</button>
@@ -2419,17 +2472,29 @@ function submitOrder(e, orderId){
   const totalQty = items.reduce((s,it)=>s+it.qty,0);
 
   const subSelectEl = document.getElementById('orderSubSelect');
-  const chosenSubId = (!order && orderType!=='tai_cho' && subSelectEl) ? subSelectEl.value : '';
+  const chosenSubId = order
+    ? (order.subscriberId||'')
+    : ((orderType!=='tai_cho' && subSelectEl) ? subSelectEl.value : '');
 
   // Chặn hẳn việc trừ vào gói nếu gói đã hết (0) hoặc không đủ số lượng còn lại cho đơn này
   if(chosenSubId){
     const chosenSub = subscriberOf(chosenSubId);
+    const previousPackageQty=(order?.subscriberId===chosenSubId && !order.subRestored)
+      ? order.items.reduce((sum,item)=>sum+(Number(item.qty)||0),0)
+      : 0;
+    const availableQty=(Number(chosenSub?.remainingQty)||0)+previousPackageQty;
     if(!chosenSub || chosenSub.status!=='dang_hoat_dong' || chosenSub.remainingQty<=0){
-      alert('Gói đăng ký của khách đã hết số lượng (0) — không thể tạo đơn trừ từ gói này. Hãy làm mới chu kỳ trong mục Gói đăng ký hoặc bỏ chọn gói.');
+      if(!previousPackageQty){
+        alert('Gói đăng ký của khách đã hết số lượng (0) — không thể tạo đơn trừ từ gói này. Hãy làm mới chu kỳ trong mục Gói đăng ký hoặc bỏ chọn gói.');
+        return;
+      }
+    }
+    if(!chosenSub || chosenSub.status!=='dang_hoat_dong'){
+      alert('Gói đăng ký này không còn hoạt động.');
       return;
     }
-    if(totalQty > chosenSub.remainingQty){
-      alert(`Số lượng đặt (${totalQty}) vượt quá số còn lại của khách trong gói (${chosenSub.remainingQty}). Hãy giảm số lượng hoặc bỏ chọn gói.`);
+    if(totalQty > availableQty){
+      alert(`Số lượng đặt (${totalQty}) vượt quá số có thể sử dụng trong gói (${availableQty}). Hãy giảm số lượng.`);
       return;
     }
   }
@@ -2450,6 +2515,9 @@ function submitOrder(e, orderId){
     }
   }
 
+  const keepsExistingPayment=order && Number(order.total)===Number(total) && order.customerId===customerId;
+  const packageOrderPaid=Boolean(subscriberId);
+  const createdAt=order?.createdAt || new Date().toISOString();
   const newOrder = {
     id: orderId || uid(),
     orderType, customerId, customerName,
@@ -2462,10 +2530,10 @@ function submitOrder(e, orderId){
     deliveryTime: document.getElementById('orderDeliveryTime').value,
     status: document.getElementById('orderStatus').value,
     note: document.getElementById('orderNote').value,
-    createdAt: order?.createdAt || new Date().toISOString(),
+    createdAt,
     orderPosition: order?.orderPosition ?? nextOrderPosition(),
-    paymentStatus: order && Number(order.total)===Number(total) && order.customerId===customerId ? (order.paymentStatus||'chua_thanh_toan') : 'chua_thanh_toan',
-    paidAt: order && Number(order.total)===Number(total) && order.customerId===customerId ? (order.paidAt||null) : null,
+    paymentStatus: packageOrderPaid ? 'da_thanh_toan' : (keepsExistingPayment ? (order.paymentStatus||'chua_thanh_toan') : 'chua_thanh_toan'),
+    paidAt: packageOrderPaid ? (order?.paidAt||createdAt) : (keepsExistingPayment ? (order.paidAt||null) : null),
   };
   if(order) DB.orders = DB.orders.map(o=>o.id===orderId?newOrder:o);
   else {
@@ -2570,6 +2638,10 @@ function applyOrderPayment(order,kind){
 function confirmOrderPaid(id){
   const order=DB.orders.find(item=>item.id===id);
   if(!order || isOrderPaid(order)) return;
+  if(order.status!=='hoan_thanh'){
+    alert('Chỉ có thể duyệt thanh toán sau khi đơn đã được đánh dấu Đã vận chuyển.');
+    return;
+  }
   if(!confirm(`Xác nhận đã thu đủ ${vnd(order.total)} của ${order.customerName}?`)) return;
   applyOrderPayment(order,'paid');
   persistOrders(); persistCustomerPayments(); renderMain();
@@ -3073,12 +3145,21 @@ function deleteProduct(id){
 
 /* ================= RECIPES ================= */
 function renderRecipesTab(){
+  const recipeQuery=searchableText(recipesFilter.search);
+  const recipeMatches=r=>{
+    const product=DB.products.find(p=>p.id===r.productId);
+    const ingredientNames=(r.ingredients||[]).map(ing=>ingredientMaterial(ing)?.name||ing.name||'').join(' ');
+    return !recipeQuery || searchableText(`${r.name} ${product?.name||''} ${ingredientNames}`).includes(recipeQuery);
+  };
   return `
     ${sectionHeader('Công thức', 'Lưu công thức pha chế cho từng loại sữa hạt + tự động tính giá cost',`
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-ghost" onclick="openMaterialModal()">＋ Nguyên liệu & cost</button>
         <button class="btn btn-solid" onclick="openRecipeModal()">＋ Thêm công thức</button>
       </div>`)}
+    <div class="filters-row" style="margin-bottom:14px;">
+      <div class="search-wrap"><span class="search-icon">🔍</span><input class="input" placeholder="Tìm nhanh theo tên công thức, sản phẩm hoặc nguyên liệu..." value="${escapeHtml(recipesFilter.search)}" oninput="filterRecipeCards(this.value)"></div>
+    </div>
     <div class="panel" style="margin-bottom:18px;">
       <div class="section-header" style="margin-bottom:12px;">
         <div>
@@ -3106,7 +3187,8 @@ function renderRecipesTab(){
         const product = DB.products.find(p=>p.id===r.productId);
         const batchCost = recipeBatchCost(r);
         const unitCost = recipeUnitCost(r);
-        return `<div class="recipe-card">
+        const searchText=`${r.name} ${product?.name||''} ${(r.ingredients||[]).map(ing=>ingredientMaterial(ing)?.name||ing.name||'').join(' ')}`;
+        return `<div class="recipe-card recipe-search-item" data-search="${escapeHtml(searchText)}" style="${recipeMatches(r)?'':'display:none;'}">
           <div class="recipe-head" onclick="toggleRecipe('${r.id}')">
             <div>
               <div style="font-weight:700;font-size:14.5px;">${escapeHtml(r.name)}</div>
@@ -3138,7 +3220,20 @@ function renderRecipesTab(){
         </div>`;
       }).join('')
     }
+    ${DB.recipes.length?`<div id="recipeSearchEmpty" class="empty-state" style="display:${DB.recipes.some(recipeMatches)?'none':'block'};"><div class="empty-icon">🔍</div><div class="empty-title">Không tìm thấy công thức phù hợp</div></div>`:''}
   `;
+}
+function filterRecipeCards(value){
+  recipesFilter.search=value;
+  const query=searchableText(value);
+  let visible=0;
+  document.querySelectorAll('.recipe-search-item').forEach(card=>{
+    const match=!query || searchableText(card.dataset.search||'').includes(query);
+    card.style.display=match?'':'none';
+    if(match) visible++;
+  });
+  const empty=document.getElementById('recipeSearchEmpty');
+  if(empty) empty.style.display=visible?'none':'block';
 }
 function toggleRecipe(id){
   document.getElementById('body-'+id).classList.toggle('open');
