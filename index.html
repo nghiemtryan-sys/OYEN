@@ -349,6 +349,14 @@
     .main{padding:16px;padding-bottom:90px;}
     .fab{bottom:80px;}
   }
+.mobilenav{overflow-x:auto;justify-content:flex-start}.mobilenav button{flex:1 0 72px}
+
+.order-tag-trigger{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-soft);border-radius:7px;background:var(--panel);padding:7px;cursor:pointer;min-width:44px;min-height:36px}
+.order-tag-square{width:16px;height:16px;border:1px solid currentColor;border-radius:3px;font-size:12px;line-height:14px;text-align:center}
+.order-tag-options{display:flex;flex-wrap:wrap;gap:18px;margin:18px 0 28px}
+.order-tag-options label{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px}
+.order-tag-options input{accent-color:#009b9c;width:18px;height:18px}
+.order-tag-counter{text-align:right;color:var(--ink-faint);font-size:12px;margin-top:5px}
 </style>
 </head>
 <body>
@@ -384,6 +392,7 @@ const NAV = [
   {key:'orders', label:'Đơn hàng', icon:'🧾'},
   {key:'customers', label:'Khách hàng', icon:'👥'},
   {key:'products', label:'Sản phẩm', icon:'📦'},
+  {key:'marketing', label:'Marketing', icon:'📣'},
   {key:'more', label:'Thêm', icon:'＋'},
   {key:'settings', label:'Đồng bộ dữ liệu', icon:'⚙️'},
 ];
@@ -1002,7 +1011,7 @@ async function loadAdminData(){
   }
   // Đơn đã trừ từ gói không phát sinh công nợ: luôn xem là đã thanh toán.
   DB.orders.forEach(order=>{
-    if(order.subscriberId && order.paymentStatus!=='da_thanh_toan'){
+    if(order.subscriberId && !(Number(order.shippingFee)>0) && order.paymentStatus!=='da_thanh_toan'){
       order.paymentStatus='da_thanh_toan';
       order.paidAt=order.paidAt||order.createdAt||new Date().toISOString();
       ordersChanged=true;
@@ -1263,6 +1272,7 @@ function renderMain(){
   if(TAB==='dashboard') el.innerHTML = renderDashboard();
   else if(TAB==='orders'){ el.innerHTML = renderOrdersTab(); refreshOrdersList(); }
   else if(TAB==='customers'){ el.innerHTML = renderCustomersTab(); refreshCustomersList(); }
+  else if(TAB==='marketing') el.innerHTML = renderMarketingTab();
   else if(TAB==='more') el.innerHTML = renderMoreTab();
   else if(TAB==='subscriptions') el.innerHTML = renderSubscriptionsTab();
   else if(TAB==='branches') el.innerHTML = renderBranchesTab();
@@ -1774,6 +1784,7 @@ function ordersForCurrentFilters(includeStage=true,includeSearch=true){
   return DB.orders
     .filter(o=>o.deliveryDate>=range.from && o.deliveryDate<=range.to)
     .filter(o=>ordersFilter.branch==='all' || o.branchId===ordersFilter.branch)
+    .filter(o=>!ordersFilter.tag || ordersFilter.tag==='all' || (ordersFilter.tag==='none' ? !o.colorTag : o.colorTag===ordersFilter.tag))
     .filter(o=>!includeStage || orderMatchesStage(o,ordersFilter.status))
     .filter(o=>!includeSearch || !query || (o.customerName||'').toLowerCase().includes(query) || (o.phone||'').includes(query));
 }
@@ -1898,6 +1909,7 @@ function renderOrdersTab(){
       </select>` : ''}
       <div class="search-wrap"><span class="search-icon">🔍</span><input class="input" id="fltSearch" placeholder="Tìm theo tên / SĐT khách..." value="${escapeHtml(ordersFilter.search)}" oninput="ordersFilter.search=this.value;refreshOrdersList()"></div>
     </div>
+    <div class="filters-row"><label>Thẻ màu <select class="input" style="width:auto" onchange="ordersFilter.tag=this.value;selectedOrderIds.clear();renderMain()"><option value="all">Tất cả màu</option>${ORDER_COLORS.map(c=>`<option value="${c.id}" ${ordersFilter.tag===c.id?'selected':''}>${c.name}</option>`).join('')}<option value="none" ${ordersFilter.tag==='none'?'selected':''}>Chưa gắn thẻ</option></select></label></div>
     <div id="preparationSummaryContainer">${renderPreparationSummary()}</div>
     <div id="orderBulkBar"></div>
     <div id="ordersListContainer"></div>
@@ -1940,6 +1952,7 @@ function refreshOrdersList(){
       <button type="button" class="drag-handle" draggable="true" title="Kéo để đổi thứ tự" aria-label="Kéo để đổi thứ tự đơn" ondragstart="orderDragStart(event,'${o.id}')" ondragend="orderDragEnd()" ontouchstart="orderTouchStart(event,'${o.id}')" ontouchmove="orderTouchMove(event)" ontouchend="orderTouchEnd(event)">⋮⋮</button>
       <label class="order-check" title="Chọn đơn"><input type="checkbox" ${selectedOrderIds.has(o.id)?'checked':''} onchange="toggleOrderSelection('${o.id}',this.checked)"></label>
       <div style="min-width:180px;flex:1 1 180px;">
+        ${o.colorTag && ORDER_COLORS.some(c=>c.id===o.colorTag)?`<span class="badge" style="background:${ORDER_COLORS.find(c=>c.id===o.colorTag).color};color:#fff;margin-bottom:6px">${ORDER_COLORS.find(c=>c.id===o.colorTag).name}</span>`:''}
         <div class="order-name">${escapeHtml(o.customerName)} ${cust&&cust.vip?'⭐':''}</div>
         ${o.orderType==='tai_cho'
           ? `<div class="order-sub" style="color:var(--gold);font-weight:700;">🪑 Bán tại chỗ</div>`
@@ -1949,8 +1962,9 @@ function refreshOrdersList(){
       </div>
       <div style="min-width:200px;flex:1 1 220px;" class="order-items">
         ${o.items.map(it=>`<div>${escapeHtml(it.name)} × ${it.qty}</div>`).join('')}
-        ${o.subscriberId ? `<div class="order-total" style="color:var(--blue);">🔁 Trừ ${totalQty} từ gói đăng ký</div>` : `<div class="order-total">${vnd(o.total)}</div>`}
+        ${o.subscriberId ? `<div class="order-total" style="color:var(--blue);">🔁 Trừ ${totalQty} từ gói đăng ký</div>${Number(o.shippingFee)>0?`<div class="order-total">Phí ship cần thu: ${vnd(o.total)}</div>`:''}` : `<div class="order-total">${vnd(o.total)}</div>`}
       </div>
+      ${!o.subscriberId && Number(o.shippingFee)>0?`<div class="field-hint">Tổng tiền đã gồm phí ship ${vnd(o.shippingFee)}</div>`:''}
       <div class="order-time">⏰ ${fmtDate(o.deliveryDate)} ${o.deliveryTime?`· ${o.deliveryTime}`:''}</div>
       <div class="order-workflow-actions">
         ${o.status==='cho_xac_nhan'
@@ -1958,7 +1972,7 @@ function refreshOrdersList(){
           : ['da_xac_nhan','dang_chuan_bi','dang_giao'].includes(o.status)
             ? `<button class="btn btn-ghost" style="padding:7px 10px;font-size:12.5px;" onclick="markOrderDelivered('${o.id}')">✓ Đã vận chuyển</button>`
             : `<span class="badge" style="color:${st.color};background:${st.color}1A;">${st.label}</span>`}
-        ${o.subscriberId
+        ${o.subscriberId && !(Number(o.shippingFee)>0)
           ? `<span class="badge" style="color:var(--green);background:var(--green)1A;">✓ Đã thanh toán bằng gói</span>`
           : (isDebtTrackableOrder(o)?(isOrderPaid(o)
             ? `<span class="badge" style="color:var(--green);background:var(--green)1A;">✓ Đã thanh toán</span>`
@@ -1967,6 +1981,7 @@ function refreshOrdersList(){
       <div style="display:flex;gap:2px;">
         <button class="icon-btn" onclick="openOrderModal('${o.id}')" title="Sửa">✎</button>
         <button class="icon-btn" onclick="deleteOrder('${o.id}')" title="Xóa">🗑</button>
+        <button type="button" class="order-tag-trigger" onclick="openOrderTagModal('${o.id}')" title="${escapeHtml(o.tagNote||'Chọn thẻ màu và lưu ý')}" aria-label="Chọn thẻ màu và lưu ý" aria-haspopup="dialog" style="color:${ORDER_COLORS.find(c=>c.id===o.colorTag)?.color||'var(--ink-faint)'}"><span class="order-tag-square">${o.colorTag?'✓':''}</span><svg width="16" height="20" viewBox="0 0 16 20" aria-hidden="true"><path d="M2 1h12v17l-6-4-6 4Z" fill="${o.colorTag?'currentColor':'none'}" stroke="currentColor" stroke-width="1.5"/></svg></button>
       </div>
     </div>`;
   }).join('');
@@ -2048,6 +2063,7 @@ function renderOrderBulkBar(list){
   bar.innerHTML=`<div class="bulk-bar">
     <label class="bulk-select"><input type="checkbox" ${allSelected?'checked':''} onchange="toggleAllVisibleOrders(this.checked)"> Chọn tất cả</label>
     <span class="bulk-count">Đã chọn <strong>${selected.length}</strong> đơn</span>
+    <select class="input" style="width:175px" aria-label="Gắn thẻ đơn đã chọn" ${selected.length?'':'disabled'} onchange="tagSelectedOrders(this.value)"><option value="">Gắn thẻ màu…</option>${ORDER_COLORS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}<option value="none">Bỏ thẻ màu</option></select>
     ${canArrange?`<button class="btn btn-solid" ${selected.length?'':'disabled'} onclick="bulkUpdateOrderStatus('dang_giao')">Sắp xếp vận chuyển</button>`:''}
     ${canComplete?`<button class="btn btn-ghost" ${selected.length?'':'disabled'} onclick="bulkUpdateOrderStatus('hoan_thanh')">✓ Đã vận chuyển</button>`:''}
     <button class="btn btn-danger" ${selected.length?'':'disabled'} onclick="bulkDeleteOrders()">Xóa</button>
@@ -2216,9 +2232,9 @@ function recomputeOrderTotal(){
     qty += q;
   });
   const subSel = document.getElementById('orderSubSelect');
-  const useSub = subSel && subSel.value;
-  if(useSub){
-    const s = subscriberOf(subSel.value);
+  const useSub = (subSel && subSel.value) || document.getElementById('editingSubscriberId')?.value;
+  if(useSub && subSel){
+    const s = subscriberOf(useSub);
     const pkg = s ? packageOf(s.packageId) : null;
     if(s && qty>s.remainingQty){
       subSel.parentElement.querySelector('.sub-overuse-warn')?.remove();
@@ -2232,7 +2248,8 @@ function recomputeOrderTotal(){
     }
   }
   const disp = document.getElementById('orderTotalDisplay');
-  if(disp) disp.textContent = useSub ? `Trừ ${qty} từ gói đăng ký` : vnd(total);
+  const shippingFee=Math.max(0,Number(document.getElementById('orderShippingFee')?.value)||0);
+  if(disp) disp.textContent = useSub ? `Trừ ${qty} ly từ gói · Cần thu: ${vnd(shippingFee)}` : vnd(total+shippingFee);
 }
 function toggleOrderCustomerMode(mode){
   document.getElementById('existingCustomerBlock').style.display = mode==='existing' ? 'block' : 'none';
@@ -2360,7 +2377,9 @@ function openOrderModal(orderId){
         <button type="button" class="add-row-btn" onclick="addOrderItemRow()">＋ Thêm sản phẩm</button>
       </div>
       <div class="field"><span class="field-label">Ghi chú đơn hàng</span><textarea class="input" id="orderNote">${escapeHtml(order?.note||'')}</textarea><span class="field-hint">Ví dụ: ít đường, giao trước cổng, thanh toán chuyển khoản...</span></div>
-      <div class="total-row"><span class="total-label">Tổng tiền</span><span class="total-value" id="orderTotalDisplay">${vnd(order?.total||0)}</span></div>
+      <input type="hidden" id="editingSubscriberId" value="${order?.subscriberId||''}">
+      <div class="field"><span class="field-label">Phí ship (đ)</span><input class="input" id="orderShippingFee" type="number" min="0" step="1" value="${Number(order?.shippingFee)||0}" oninput="recomputeOrderTotal()"><span class="field-hint">Phí ship cộng vào tiền cần thu; đơn dùng gói chỉ thu thêm phí ship.</span></div>
+      <div class="total-row"><span class="total-label">Tổng thanh toán</span><span class="total-value" id="orderTotalDisplay">${vnd(order?.total||0)}</span></div>
       <div class="form-actions">
         <button type="submit" class="btn btn-solid">${order?'Lưu thay đổi':'Tạo đơn hàng'}</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
@@ -2419,7 +2438,8 @@ function openQuickOrderModal(){
         </div>
         <button type="button" class="add-row-btn" onclick="addOrderItemRow()">＋ Thêm sản phẩm</button>
       </div>
-      <div class="total-row"><span class="total-label">Tổng tiền</span><span class="total-value" id="orderTotalDisplay">${vnd(0)}</span></div>
+      <div class="field"><span class="field-label">Phí ship (đ)</span><input class="input" id="orderShippingFee" type="number" min="0" step="1" value="0" oninput="recomputeOrderTotal()"></div>
+      <div class="total-row"><span class="total-label">Tổng thanh toán</span><span class="total-value" id="orderTotalDisplay">${vnd(0)}</span></div>
       <div class="form-actions">
         <button type="submit" class="btn btn-solid">⚡ Tạo đơn nhanh</button>
         <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
@@ -2470,6 +2490,9 @@ function submitOrder(e, orderId){
   if(hasInvalidProduct){ alert('Có sản phẩm chưa được chọn đúng từ danh sách gợi ý. Vui lòng chọn lại sản phẩm.'); return; }
   if(items.length===0){ alert('Vui lòng thêm ít nhất 1 sản phẩm.'); return; }
   const totalQty = items.reduce((s,it)=>s+it.qty,0);
+  const shippingFee=Number(document.getElementById('orderShippingFee')?.value||0);
+  if(!Number.isFinite(shippingFee)||shippingFee<0){alert('Phí ship phải từ 0 trở lên.');return;}
+  if(items.some(it=>!Number.isInteger(it.qty)||it.qty<=0)){alert('Số ly phải là số nguyên dương.');return;}
 
   const subSelectEl = document.getElementById('orderSubSelect');
   const chosenSubId = order
@@ -2515,8 +2538,9 @@ function submitOrder(e, orderId){
     }
   }
 
+  total += shippingFee;
   const keepsExistingPayment=order && Number(order.total)===Number(total) && order.customerId===customerId;
-  const packageOrderPaid=Boolean(subscriberId);
+  const packageOrderPaid=Boolean(subscriberId) && shippingFee===0;
   const createdAt=order?.createdAt || new Date().toISOString();
   const newOrder = {
     id: orderId || uid(),
@@ -2524,7 +2548,7 @@ function submitOrder(e, orderId){
     phone: orderType==='tai_cho' ? '' : (document.getElementById('orderPhone')?.value||''),
     address: orderType==='tai_cho' ? '' : (document.getElementById('orderAddress')?.value||''),
     branchId: document.getElementById('orderBranch').value,
-    items, total,
+    items, total, shippingFee, colorTag:order?.colorTag||'', tagNote:order?.tagNote||'',
     subscriberId, subRestored: false,
     deliveryDate: document.getElementById('orderDeliveryDate').value,
     deliveryTime: document.getElementById('orderDeliveryTime').value,
@@ -2541,6 +2565,7 @@ function submitOrder(e, orderId){
     TAB = 'orders';
     ordersFilter.mode = 'all';
     ordersFilter.status = 'all';
+    ordersFilter.tag='all';ordersFilter.search='';ordersFilter.branch='all';
   }
   persistOrders();
   closeModal();
@@ -2552,7 +2577,7 @@ function orderCupCount(order){
   return (order?.items||[]).reduce((sum,item)=>sum+(Number(item.qty)||0),0);
 }
 function isDebtTrackableOrder(order){
-  return order?.status==='hoan_thanh' && Boolean(order.customerId) && order.orderType!=='tai_cho' && !order.subscriberId && Number(order.total)>0;
+  return order?.status==='hoan_thanh' && Boolean(order.customerId) && order.orderType!=='tai_cho' && (!order.subscriberId || Number(order.shippingFee)>0) && Number(order.total)>0;
 }
 function isOrderPaid(order){ return order?.paymentStatus==='da_thanh_toan'; }
 function unpaidDebtOrders(){ return DB.orders.filter(order=>isDebtTrackableOrder(order) && !isOrderPaid(order)); }
@@ -2600,7 +2625,7 @@ function renderDebtsTab(){
   const groups=groupDebtOrders(source);
   const visibleGroups=groups.filter(group=>!query || group.name.toLowerCase().includes(query) || group.phone.includes(query));
   const history=[...DB.customerPayments].sort((a,b)=>String(b.createdAt||'').localeCompare(String(a.createdAt||''))).slice(0,12);
-  return `${sectionHeader('Công nợ khách hàng','Chỉ tính đơn đã vận chuyển, không gồm đơn tại chỗ và đơn đã trừ gói')}
+  return `${sectionHeader('Công nợ khách hàng','Chỉ tính đơn đã vận chuyển; đơn dùng gói chỉ ghi công nợ phí ship nếu có')}
     <div class="stats-row">
       ${statCard('💰','var(--icon-red)','Tổng tiền còn nợ',vnd(totalAmount))}
       ${statCard('🧾','var(--icon-gold)','Đơn chưa thanh toán',unpaid.length)}
@@ -2863,6 +2888,7 @@ function openPackageDetail(packageId){
             <select onchange="setSubscriberStatus('${s.id}', this.value)">
               ${SUB_STATUS.map(x=>`<option value="${x.key}" ${s.status===x.key?'selected':''}>${x.label}</option>`).join('')}
             </select>
+            <button class="btn btn-solid" ${empty||s.status!=='dang_hoat_dong'?'disabled':''} onclick="orderFromSubscriber('${s.id}')">＋ Lên đơn</button>
             <button class="icon-btn" onclick="renewSubscriber('${s.id}')" title="Làm mới chu kỳ (về ${pkg.totalQty}/${pkg.totalQty})">🔄</button>
             <button class="icon-btn" onclick="editSubscriberQty('${s.id}')" title="Chỉnh số lượng còn lại">✎</button>
             <button class="icon-btn" onclick="removeSubscriber('${s.id}')" title="Xóa khỏi gói">🗑</button>
@@ -3504,6 +3530,57 @@ function renderSettingsTab(){
 async function copyPortalSetupSQL(){
   try{ await navigator.clipboard.writeText(ADMIN_SETUP_SQL); alert('Đã sao chép toàn bộ SQL.'); }
   catch(error){ alert('Trình duyệt không cho sao chép tự động. Hãy bôi đen đoạn SQL và sao chép thủ công.'); }
+}
+
+
+const OYEN_MARKETING_DOCUMENT = 'PCFkb2N0eXBlIGh0bWw+PGh0bWwgbGFuZz0idmkiPjxtZXRhIGNoYXJzZXQ9InV0Zi04Ij48bWV0YSBuYW1lPSJ2aWV3cG9ydCIgY29udGVudD0id2lkdGg9ZGV2aWNlLXdpZHRoLGluaXRpYWwtc2NhbGU9MSI+PHRpdGxlPk9ZRU4g4oCiIE1hcmtldGluZyBTdHVkaW88L3RpdGxlPjxzdHlsZT4KKntib3gtc2l6aW5nOmJvcmRlci1ib3h9Ym9keXttYXJnaW46MDtiYWNrZ3JvdW5kOiNmNWY0ZWY7Y29sb3I6IzIyM2QzMjtmb250OjE1cHggc3lzdGVtLXVpfWFzaWRle3Bvc2l0aW9uOmZpeGVkO2luc2V0OjAgYXV0byAwIDA7d2lkdGg6MjMwcHg7YmFja2dyb3VuZDojMTczZDMwO2NvbG9yOndoaXRlO3BhZGRpbmc6MzBweCAyMHB4fWgxLGgyLGgzLHB7bWFyZ2luLXRvcDowfWFzaWRlIGgxe2ZvbnQ6MzZweCBHZW9yZ2lhO2xldHRlci1zcGFjaW5nOjNweH1hc2lkZSBzbWFsbHtjb2xvcjojYzRkMmM2fW5hdnttYXJnaW4tdG9wOjQ1cHh9YnV0dG9uLGlucHV0LHNlbGVjdCx0ZXh0YXJlYXtmb250OmluaGVyaXR9YnV0dG9ue2N1cnNvcjpwb2ludGVyO2JvcmRlcjoxcHggc29saWQgI2Q1ZGRkNTtib3JkZXItcmFkaXVzOjlweDtwYWRkaW5nOjEwcHggMTRweDtiYWNrZ3JvdW5kOndoaXRlO2NvbG9yOiMyMTQ2MzR9YnV0dG9uLnByaW1hcnl7YmFja2dyb3VuZDojMjE0ZTNiO2NvbG9yOndoaXRlO2JvcmRlci1jb2xvcjojMjE0ZTNifW5hdiBidXR0b257ZGlzcGxheTpibG9jazt3aWR0aDoxMDAlO21hcmdpbjo4cHggMDtiYWNrZ3JvdW5kOnRyYW5zcGFyZW50O2NvbG9yOndoaXRlO3RleHQtYWxpZ246bGVmdDtib3JkZXI6MH1uYXYgYnV0dG9uLmFjdGl2ZXtiYWNrZ3JvdW5kOiNmZmZmZmYyMH1tYWlue21hcmdpbi1sZWZ0OjIzMHB4O3BhZGRpbmc6MzhweDttYXgtd2lkdGg6MTYwMHB4fS50b3AsLnJvd3tkaXNwbGF5OmZsZXg7Z2FwOjEycHg7YWxpZ24taXRlbXM6Y2VudGVyO2p1c3RpZnktY29udGVudDpzcGFjZS1iZXR3ZWVuO2ZsZXgtd3JhcDp3cmFwfS5leWVicm93e2ZvbnQtc2l6ZToxMXB4O2xldHRlci1zcGFjaW5nOjJweDtjb2xvcjojNzg4Njc0fS5tdXRlZHtjb2xvcjojNzk4Mjc4O2ZvbnQtc2l6ZToxM3B4fS5wYW5lbCwuY2FyZHtiYWNrZ3JvdW5kOndoaXRlO2JvcmRlcjoxcHggc29saWQgI2UwZTNkOTtib3JkZXItcmFkaXVzOjE1cHg7cGFkZGluZzoyMnB4O21hcmdpbjoxOHB4IDB9LmdyaWR7ZGlzcGxheTpncmlkO2dyaWQtdGVtcGxhdGUtY29sdW1uczpyZXBlYXQoYXV0by1maXQsbWlubWF4KDIyMHB4LDFmcikpO2dhcDoxNnB4fS5zdGF0e2ZvbnQtc2l6ZTozMnB4fS5iYWRnZXtkaXNwbGF5OmlubGluZS1ibG9jaztmb250LXNpemU6MTJweDtiYWNrZ3JvdW5kOiNlZGYwZGM7Y29sb3I6IzRhNTkzNDtib3JkZXItcmFkaXVzOjMwcHg7cGFkZGluZzo1cHggMTBweH0uYm9hcmR7ZGlzcGxheTpncmlkO2dyaWQtdGVtcGxhdGUtY29sdW1uczpyZXBlYXQoYXV0by1maXQsbWlubWF4KDI0MHB4LDFmcikpO2dhcDoxNHB4fS5jYXJkIHB7d2hpdGUtc3BhY2U6cHJlLXdyYXA7bGluZS1oZWlnaHQ6MS42fS5jYXJkIGgze2ZvbnQtc2l6ZToxN3B4fS5jYXJke21hcmdpbjoxMHB4IDB9LnRvb2xiYXJ7ZGlzcGxheTpmbGV4O2dhcDoxMHB4O2ZsZXgtd3JhcDp3cmFwO21hcmdpbjoyNHB4IDB9aW5wdXQsc2VsZWN0LHRleHRhcmVhe2JvcmRlcjoxcHggc29saWQgI2NlZDhjZTtib3JkZXItcmFkaXVzOjhweDtwYWRkaW5nOjEwcHg7YmFja2dyb3VuZDp3aGl0ZTtjb2xvcjojMjYzYzMwfWlucHV0LHRleHRhcmVhe3dpZHRoOjEwMCV9dGV4dGFyZWF7bWluLWhlaWdodDoxNDBweH1sYWJlbHtkaXNwbGF5OmJsb2NrO21hcmdpbjoxMnB4IDAgNnB4O2ZvbnQtc2l6ZToxM3B4fWRpYWxvZ3tib3JkZXI6MDtib3JkZXItcmFkaXVzOjE4cHg7d2lkdGg6bWluKDcyMHB4LDk0dncpO21heC1oZWlnaHQ6OTB2aDtwYWRkaW5nOjI4cHg7Ym94LXNoYWRvdzowIDE1cHggODBweCAjMDAwM31kaWFsb2c6OmJhY2tkcm9we2JhY2tncm91bmQ6IzEwMmQyNTcwfWF7Y29sb3I6IzM1NjU0Y310YWJsZXt3aWR0aDoxMDAlO2JvcmRlci1jb2xsYXBzZTpjb2xsYXBzZX10ZCx0aHt0ZXh0LWFsaWduOmxlZnQ7cGFkZGluZzoxMnB4O2JvcmRlci1ib3R0b206MXB4IHNvbGlkICNlZWV9I25vdGljZXtwYWRkaW5nOjEycHg7YmFja2dyb3VuZDojZjFlOGNiO2JvcmRlci1yYWRpdXM6OHB4O2Rpc3BsYXk6bm9uZX0uc3RyaXB7YmFja2dyb3VuZDojZTllZGRkO3BhZGRpbmc6MTZweDtib3JkZXItcmFkaXVzOjEycHg7bWFyZ2luOjI0cHggMDtsaW5lLWhlaWdodDoxLjZ9LmFjdGlvbnN7ZGlzcGxheTpmbGV4O2dhcDo4cHg7ZmxleC13cmFwOndyYXA7bWFyZ2luLXRvcDoxNnB4fUBtZWRpYShtYXgtd2lkdGg6NzYwcHgpe2FzaWRle3Bvc2l0aW9uOnN0YXRpYzt3aWR0aDphdXRvO3BhZGRpbmc6MThweH1hc2lkZSBoMXttYXJnaW46MH1uYXZ7bWFyZ2luOjEycHggMCAwO2Rpc3BsYXk6ZmxleDtvdmVyZmxvdzphdXRvfW5hdiBidXR0b257d2lkdGg6YXV0bzt3aGl0ZS1zcGFjZTpub3dyYXB9bWFpbnttYXJnaW46MDtwYWRkaW5nOjIwcHh9LmdyaWR7Z3JpZC10ZW1wbGF0ZS1jb2x1bW5zOjFmciAxZnJ9fQphc2lkZXtwb3NpdGlvbjpzdGF0aWM7d2lkdGg6YXV0bztiYWNrZ3JvdW5kOiNmZmY7Y29sb3I6IzIyM2QzMjtwYWRkaW5nOjEycHggMDtib3JkZXItYm90dG9tOjFweCBzb2xpZCAjZGNlM2Q5fWFzaWRlIGgxLGFzaWRlPnNtYWxsLGFzaWRlPnB7ZGlzcGxheTpub25lfW5hdnttYXJnaW46MDtkaXNwbGF5OmZsZXg7Z2FwOjRweDtvdmVyZmxvdy14OmF1dG99bmF2IGJ1dHRvbnt3aWR0aDphdXRvO2NvbG9yOiMyMTQ2MzQ7d2hpdGUtc3BhY2U6bm93cmFwO21hcmdpbjowfW5hdiBidXR0b24uYWN0aXZle2JhY2tncm91bmQ6I2U5ZWRkZH1tYWlue21hcmdpbjowO3BhZGRpbmc6MjRweCA0cHh9Ym9keXtiYWNrZ3JvdW5kOiNmNWY0ZWZ9LnRvcCBoMXtmb250LXNpemU6MjVweH1AbWVkaWEobWF4LXdpZHRoOjc2MHB4KXttYWlue3BhZGRpbmc6MThweCA0cHh9YXNpZGV7cGFkZGluZzo4cHggMH0uZ3JpZHtncmlkLXRlbXBsYXRlLWNvbHVtbnM6MWZyfX0gPC9zdHlsZT48YXNpZGU+PGgxPk9ZRU48L2gxPjxzbWFsbD5NQVJLRVRJTkcgU1RVRElPPC9zbWFsbD48bmF2IGlkPSJuYXYiPjwvbmF2PjxwIGNsYXNzPSJtdXRlZCI+TWFya2V0aW5nIE9ZRU48YnI+TMawdSB0csOqbiB0csOsbmggZHV54buHdCDigKIgRXhwb3J0IMSR4buDIHNhbyBsxrB1PC9wPjwvYXNpZGU+PG1haW4+PGRpdiBjbGFzcz0idG9wIj48ZGl2PjxkaXYgY2xhc3M9ImV5ZWJyb3ciPlBIw5JORyBNQVJLRVRJTkcgLyBPWUVOPC9kaXY+PGgxIGlkPSJoZWFkaW5nIiBzdHlsZT0ibWFyZ2luOjEycHggMCI+VOG7lW5nIHF1YW48L2gxPjwvZGl2PjxkaXYgY2xhc3M9ImFjdGlvbnMiPjxidXR0b24gb25jbGljaz0iZXhwb3J0RGF0YSgpIj7ihpMgRXhwb3J0IEpTT048L2J1dHRvbj48YnV0dG9uIG9uY2xpY2s9Im9wZW5JbXBvcnQoKSI+4oaRIEltcG9ydDwvYnV0dG9uPjxidXR0b24gY2xhc3M9InByaW1hcnkiIG9uY2xpY2s9ImVkaXRQb3N0KCkiPu+8iyBU4bqhbyBiw6BpPC9idXR0b24+PC9kaXY+PC9kaXY+PGRpdiBpZD0ibm90aWNlIj48L2Rpdj48ZGl2IGlkPSJjb250ZW50Ij48L2Rpdj48L21haW4+PGRpYWxvZyBpZD0ibW9kYWwiPjwvZGlhbG9nPjxpbnB1dCBpZD0iZmlsZSIgdHlwZT0iZmlsZSIgYWNjZXB0PSIuanNvbixhcHBsaWNhdGlvbi9qc29uIiBoaWRkZW4+PHNjcmlwdD4KY29uc3QgS0VZPSdveWVuLW1hcmtldGluZy10cmlhbC12MScsc3RhZ2VzPVsnQXR0ZW50aW9uJywnSW50ZXJlc3QnLCdEZXNpcmUnLCdBY3Rpb24nXSxzdGF0dXNlcz1bJ8OdIHTGsOG7n25nJywnQ2jhu50gZHV54buHdCcsJ8SQw6MgZHV54buHdCcsJ8SQw6MgxJHEg25nJ107bGV0IHRhYj0nVOG7lW5nIHF1YW4nLHF1ZXJ5PScnLHBlbmRpbmc9bnVsbDsKY29uc3QgZXNjPXM9PlN0cmluZyhzPz8nJykucmVwbGFjZSgvWyY8PiInXS9nLGM9Pih7JyYnOicmYW1wOycsJzwnOicmbHQ7JywnPic6JyZndDsnLCciJzonJnF1b3Q7JywiJyI6JyYjMzk7J31bY10pKTtjb25zdCBzYWZlPXM9Pnt0cnl7bGV0IHU9bmV3IFVSTChzKTtyZXR1cm4gWydodHRwczonLCdodHRwOiddLmluY2x1ZGVzKHUucHJvdG9jb2wpP3UuaHJlZjonJ31jYXRjaHtyZXR1cm4gJyd9fTtjb25zdCBsaW5rPSh1LHQpPT5zYWZlKHUpP2A8YSBocmVmPSIke2VzYyhzYWZlKHUpKX0iIHRhcmdldD0iX2JsYW5rIiByZWw9Im5vb3BlbmVyIG5vcmVmZXJyZXIiPiR7ZXNjKHQpfTwvYT5gOic8c3BhbiBjbGFzcz0ibXV0ZWQiPkNoxrBhIGPDsyBsacOqbiBr4bq/dDwvc3Bhbj4nO2NvbnN0IHVpZD0oKT0+Y3J5cHRvLnJhbmRvbVVVSUQ/Y3J5cHRvLnJhbmRvbVVVSUQoKTpEYXRlLm5vdygpLnRvU3RyaW5nKDM2KStNYXRoLnJhbmRvbSgpLnRvU3RyaW5nKDM2KS5zbGljZSgyKTtjb25zdCBzYW1wbGU9e3NjaGVtYVZlcnNpb246MSxjYW1wYWlnbnM6W3tpZDonQzAxJyxuYW1lOidN4buZdCB0deG6p24gaGnhu4N1IHPhu69hIGjhuqF0IE9ZRU4nLGdvYWw6J0dp4bqjaSDEkcOhcCB0aOG6r2MgbeG6r2MsIHTEg25nIHPhu7EgdGluIHTGsOG7n25nIHbDoCBuaOG6rW4gxJHGoW4gc+G7m20nfV0scG9zdHM6W1snUDAxJywnU+G7r2EgaOG6oXQgdMOhY2ggbOG7m3AgY8OzIHBo4bqjaSDEkcOjIGjhu49uZz8nLCdBdHRlbnRpb24nLCcyMDI2LTA5LTIxJywnQ2jhu50gZHV54buHdCcsJ03hu5l0IGNoYWkgc+G7r2EgY8OzIGhhaSBs4bubcCBraGnhur9uIGLhuqFuIGLEg24ga2hvxINuPyBDw7luZyBPWUVOIHTDrG0gaGnhu4N1IGhp4buHbiB0xrDhu6NuZyB0w6FjaCBs4bubcCB2w6Agbmjhu69uZyDEkWnhu4NtIGPhuqduIGzGsHUgw70ga2hpIGLhuqNvIHF14bqjbi5cblxuQuG6oW4gdGjGsOG7nW5nIGfhurdwIGPDonUgaOG7j2kgbsOgbyBraGkgZMO5bmcgc+G7r2EgaOG6oXQ/J10sWydQMDInLCdDw6J1IGNodXnhu4duIHBow61hIHNhdSBt4buZdCBt4bq7IHPhu69hJywnSW50ZXJlc3QnLCcyMDI2LTA5LTIyJywnw50gdMaw4bufbmcnLCdU4burIGtow6J1IGNo4buNbiBuZ3V5w6puIGxp4buHdSDEkeG6v24gbMO6YyBjaGnhur90IGNoYWksIG3hu5dpIGPDtG5nIMSRb+G6oW4gxJHhu4F1IGPhuqduIHPhu7EgY2jhu4luIGNodS4gT1lFTiBtdeG7kW4ga+G7gyBi4bqhbiBuZ2hlIGPDonUgY2h1eeG7h24gY+G7p2EgbeG7mXQgbeG6uyBz4buvYSBi4bqxbmcgbmjhu69uZyBow6xuaCDhuqNuaCB0aOG6rXQuJ10sWydQMDMnLCdDaOG7jW4gduG7iyBz4buvYSB0aGVvIGd1IGPhu6dhIGLhuqFuJywnRGVzaXJlJywnMjAyNi0wOS0yNCcsJ8SQw6MgZHV54buHdCcsJ0LhuqFuIHRow61jaCB24buLIGLDuWkgbmjhurkgaGF5IMSR4bqtbSDEkcOgPyBIw6N5IGNoaWEgc+G6uyBndSBj4bunYSBi4bqhbiDEkeG7gyBPWUVOIGfhu6NpIMO9IG3Ds24gcGjDuSBo4bujcCBuaMOpLiddLFsnUDA0JywnxJDhurd0IHPhu5ttIG1lbnUgbmfDoHkgbWFpJywnQWN0aW9uJywnMjAyNi0wOS0yNScsJ8OdIHTGsOG7n25nJywnTmfDoHkgbWFpIGLhuqFuIG114buRbiBtYW5nIHRoZW8gbeG7mXQgY2hhaSBz4buvYSB24buLIGfDrD8gTmjhuq9uIE9ZRU4gxJHhu4Mgbmjhuq1uIG1lbnUgdsOgIMSR4bq3dCB0csaw4bubYyBuaMOpLiddXS5tYXAoKFtpZCx0aXRsZSxzdGFnZSxkYXRlLHN0YXR1cyxjYXB0aW9uXSk9Pih7aWQsdGl0bGUsc3RhZ2UsZGF0ZSxzdGF0dXMsY2FwdGlvbixjYW1wYWlnbklkOidDMDEnLG93bmVyOidPWUVOJyxhc3NldFVybDonJyxwb3N0VXJsOicnLG5vdGU6J0Thu68gbGnhu4d1IG1pbmggaOG7jWE7IGtp4buDbSB0cmEgbuG7mWkgZHVuZyB2w6AgbWVudSB0csaw4bubYyBraGkgxJHEg25nLid9KSl9O2xldCBkYXRhPXN0cnVjdHVyZWRDbG9uZShzYW1wbGUpO3RyeXtjb25zdCByYXc9bG9jYWxTdG9yYWdlLmdldEl0ZW0oS0VZKTtpZihyYXcpZGF0YT12YWxpZGF0ZShKU09OLnBhcnNlKHJhdykpfWNhdGNoe3NldFRpbWVvdXQoKCk9Pm5vdGljZSgnS2jDtG5nIMSR4buNYyDEkcaw4bujYyBk4buvIGxp4buHdSDEkcOjIGzGsHU7IMSRYW5nIGhp4buDbiB0aOG7iyBt4bqrdS4nKSwwKX0KZnVuY3Rpb24gbm90aWNlKHMpe2NvbnN0IG49ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ25vdGljZScpO24udGV4dENvbnRlbnQ9cztuLnN0eWxlLmRpc3BsYXk9J2Jsb2NrJ31mdW5jdGlvbiBzYXZlKCl7dHJ5e2xvY2FsU3RvcmFnZS5zZXRJdGVtKEtFWSxKU09OLnN0cmluZ2lmeShkYXRhKSl9Y2F0Y2h7bm90aWNlKCdLaMO0bmcgbMawdSDEkcaw4bujYyB0csOqbiB0csOsbmggZHV54buHdC4gSMOjeSBFeHBvcnQgSlNPTiDEkeG7gyBnaeG7ryBk4buvIGxp4buHdS4nKX19ZnVuY3Rpb24gY2xvc2VNb2RhbCgpe2RvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdtb2RhbCcpLmNsb3NlKCl9ZnVuY3Rpb24gc2hvdyhzKXtjb25zdCBtPWRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdtb2RhbCcpO20uaW5uZXJIVE1MPXM7aWYoIW0ub3BlbiltLnNob3dNb2RhbCgpfQpmdW5jdGlvbiB2YWxpZGF0ZSh2KXtpZighdnx8di5zY2hlbWFWZXJzaW9uIT09MXx8IUFycmF5LmlzQXJyYXkodi5wb3N0cyl8fCFBcnJheS5pc0FycmF5KHYuY2FtcGFpZ25zKSl0aHJvdyBFcnJvcignRmlsZSBj4bqnbiBzY2hlbWFWZXJzaW9uOiAxLCBjYW1wYWlnbnMgdsOgIHBvc3RzLiBIw6N5IGTDuW5nIGZpbGUgeHXhuqV0IHThu6sgYXBwIGzDoG0gbeG6q3UuJyk7Zm9yKGNvbnN0IG5hbWUgb2YgWydwb3N0cycsJ2NhbXBhaWducyddKXtjb25zdCBpZHM9bmV3IFNldDtmb3IoY29uc3QgeCBvZiB2W25hbWVdKXtpZigheHx8dHlwZW9mIHguaWQhPT0nc3RyaW5nJ3x8IXguaWQudHJpbSgpfHxpZHMuaGFzKHguaWQpKXRocm93IEVycm9yKCdNw6MgYuG7iyB0aGnhur91IGhv4bq3YyB0csO5bmcgdHJvbmcgJytuYW1lKTtpZHMuYWRkKHguaWQpfX1mb3IoY29uc3QgYyBvZiB2LmNhbXBhaWducylpZih0eXBlb2YgYy5uYW1lIT09J3N0cmluZycpdGhyb3cgRXJyb3IoJ0NoaeG6v24gZOG7i2NoIHRoaeG6v3UgdMOqbi4nKTtmb3IoY29uc3QgcCBvZiB2LnBvc3RzKXtpZih0eXBlb2YgcC50aXRsZSE9PSdzdHJpbmcnfHwhc3RhZ2VzLmluY2x1ZGVzKHAuc3RhZ2UpfHwhc3RhdHVzZXMuaW5jbHVkZXMocC5zdGF0dXMpfHwhL15cZHs0fS1cZHsyfS1cZHsyfSQvLnRlc3QocC5kYXRlKSl0aHJvdyBFcnJvcignQsOgaSAnK3AuaWQrJyB0aGnhur91IHRpw6p1IMSR4buBLCBuZ8OgeSBZWVlZLU1NLURELCBBSURBIGhv4bq3YyB0cuG6oW5nIHRow6FpIGjhu6NwIGzhu4cuJyk7Zm9yKGNvbnN0IGsgb2YgWydjYXB0aW9uJywnb3duZXInLCdhc3NldFVybCcsJ3Bvc3RVcmwnLCdub3RlJywnY2FtcGFpZ25JZCddKWlmKHBba10hPW51bGwmJnR5cGVvZiBwW2tdIT09J3N0cmluZycpdGhyb3cgRXJyb3IoJ1RyxrDhu51uZyAnK2srJyBj4bqnbiBsw6AgdsSDbiBi4bqjbi4nKTtpZihwLnN0YXR1cz09PSfEkMOjIMSRxINuZycmJiFzYWZlKHAucG9zdFVybCkpdGhyb3cgRXJyb3IoJ0LDoGkgxJHDoyDEkcSDbmcgY+G6p24gxJHGsOG7nW5nIGThuqtuIGLDoGkgdmnhur90IGjhu6NwIGzhu4cuJyl9cmV0dXJuIHZ9CmZ1bmN0aW9uIGZpbHRlcmVkKCl7cmV0dXJuIGRhdGEucG9zdHMuZmlsdGVyKHA9PihwLnRpdGxlKycgJytwLmNhcHRpb24rJyAnK3Aub3duZXIpLnRvTG93ZXJDYXNlKCkuaW5jbHVkZXMocXVlcnkudG9Mb3dlckNhc2UoKSkpfWZ1bmN0aW9uIGNhcmQocCl7cmV0dXJuIGA8YXJ0aWNsZSBjbGFzcz0iY2FyZCI+PGRpdiBjbGFzcz0icm93Ij48c3BhbiBjbGFzcz0iYmFkZ2UiPiR7ZXNjKHAuc3RhZ2UpfTwvc3Bhbj48c3BhbiBjbGFzcz0ibXV0ZWQiPiR7ZXNjKHAuZGF0ZSl9PC9zcGFuPjwvZGl2PjxoMyBzdHlsZT0ibWFyZ2luLXRvcDoxNnB4Ij4ke2VzYyhwLnRpdGxlKX08L2gzPjxwIGNsYXNzPSJtdXRlZCI+JHtlc2MocC5vd25lcnx8J0NoxrBhIHBow6JuIGPDtG5nJyl9IMK3ICR7ZXNjKHAuc3RhdHVzKX08L3A+PHA+JHtlc2MoKHAuY2FwdGlvbnx8JycpLnNsaWNlKDAsMTUwKSl9JHsocC5jYXB0aW9ufHwnJykubGVuZ3RoPjE1MD8n4oCmJzonJ308L3A+PGJ1dHRvbiBkYXRhLWVkaXQ9IiR7ZXNjKHAuaWQpfSI+TeG7nyAvIGNo4buJbmggc+G7rWE8L2J1dHRvbj48L2FydGljbGU+YH0KZnVuY3Rpb24gcmVuZGVyKCl7ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2hlYWRpbmcnKS50ZXh0Q29udGVudD10YWI7ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ25hdicpLmlubmVySFRNTD1bJ1Thu5VuZyBxdWFuJywnQ2hp4bq/biBk4buLY2gnLCdM4buLY2ggbuG7mWkgZHVuZycsJ0PDtG5nIHZp4buHYycsJ1TGsCBsaeG7h3UnLCdJbXBvcnQgLyBFeHBvcnQnXS5tYXAodD0+YDxidXR0b24gZGF0YS10YWI9IiR7dH0iIGNsYXNzPSIke3RhYj09PXQ/J2FjdGl2ZSc6Jyd9Ij4ke3R9PC9idXR0b24+YCkuam9pbignJyk7bGV0IGg9Jyc7aWYodGFiPT09J1Thu5VuZyBxdWFuJyl7aD1gPGRpdiBjbGFzcz0ic3RyaXAiPjxiPlThu6sgw70gdMaw4bufbmcgxJHhur9uIGLDoGkgxJHDoyDEkcSDbmc8L2I+PGJyPkzDoG0ga+G6vyBob+G6oWNoIHRyb25nIGThu7Egw6FuIENvbnRlbnQgT1lFTiDihpIgWHXhuqV0IEpTT04g4oaSIEltcG9ydCDihpIgRHV54buHdCDihpIgxJDEg25nIHRo4bunIGPDtG5nLjwvZGl2PjxkaXYgY2xhc3M9ImdyaWQiPiR7W1snVOG7lW5nIGLDoGknLGRhdGEucG9zdHMubGVuZ3RoXSxbJ0No4budIGR1eeG7h3QnLGRhdGEucG9zdHMuZmlsdGVyKHA9PnAuc3RhdHVzPT09J0No4budIGR1eeG7h3QnKS5sZW5ndGhdLFsnxJDDoyBkdXnhu4d0JyxkYXRhLnBvc3RzLmZpbHRlcihwPT5wLnN0YXR1cz09PSfEkMOjIGR1eeG7h3QnKS5sZW5ndGhdLFsnxJDDoyDEkcSDbmcnLGRhdGEucG9zdHMuZmlsdGVyKHA9PnAuc3RhdHVzPT09J8SQw6MgxJHEg25nJykubGVuZ3RoXV0ubWFwKChbdCxuXSk9PmA8ZGl2IGNsYXNzPSJwYW5lbCI+PGRpdiBjbGFzcz0ibXV0ZWQiPiR7dH08L2Rpdj48ZGl2IGNsYXNzPSJzdGF0Ij4ke259PC9kaXY+PC9kaXY+YCkuam9pbignJyl9PC9kaXY+PGgyPlBo4buFdSBu4buZaSBkdW5nIEFJREE8L2gyPjxkaXYgY2xhc3M9ImdyaWQiPiR7c3RhZ2VzLm1hcChzPT5gPGRpdiBjbGFzcz0icGFuZWwiPjxiPiR7c308L2I+PGRpdiBjbGFzcz0ic3RhdCI+JHtkYXRhLnBvc3RzLmZpbHRlcihwPT5wLnN0YWdlPT09cykubGVuZ3RofTwvZGl2PjxzbWFsbD5iw6BpIHRyb25nIGvhur8gaG/huqFjaDwvc21hbGw+PC9kaXY+YCkuam9pbignJyl9PC9kaXY+PGgyPkLDoGkgY+G6p24gZHV54buHdDwvaDI+PGRpdiBjbGFzcz0iZ3JpZCI+JHtkYXRhLnBvc3RzLmZpbHRlcihwPT5wLnN0YXR1cz09PSdDaOG7nSBkdXnhu4d0JykubWFwKGNhcmQpLmpvaW4oJycpfHwnPHA+S2jDtG5nIGPDsyBiw6BpIGNo4budIGR1eeG7h3QuPC9wPid9PC9kaXY+YH1lbHNlIGlmKHRhYj09PSdDaGnhur9uIGThu4tjaCcpe2g9JzxidXR0b24gb25jbGljaz0iZWRpdENhbXBhaWduKCkiPu+8iyBUaMOqbSBjaGnhur9uIGThu4tjaDwvYnV0dG9uPicrZGF0YS5jYW1wYWlnbnMubWFwKGM9PmA8ZGl2IGNsYXNzPSJwYW5lbCI+PGgyPiR7ZXNjKGMubmFtZSl9PC9oMj48cD4ke2VzYyhjLmdvYWwpfTwvcD48c3BhbiBjbGFzcz0iYmFkZ2UiPiR7ZGF0YS5wb3N0cy5maWx0ZXIocD0+cC5jYW1wYWlnbklkPT09Yy5pZCkubGVuZ3RofSBiw6BpPC9zcGFuPjwvZGl2PmApLmpvaW4oJycpfWVsc2UgaWYodGFiPT09J0zhu4tjaCBu4buZaSBkdW5nJ3x8dGFiPT09J0PDtG5nIHZp4buHYycpe2g9YDxkaXYgY2xhc3M9InRvb2xiYXIiPjxpbnB1dCBpZD0ic2VhcmNoIiBwbGFjZWhvbGRlcj0iVMOsbSB0acOqdSDEkeG7gSwgY2FwdGlvbiwgbmfGsOG7nWkgcGjhu6UgdHLDoWNo4oCmIiB2YWx1ZT0iJHtlc2MocXVlcnkpfSI+PC9kaXY+PGRpdiBpZD0ibGlzdCI+PC9kaXY+YH1lbHNlIGlmKHRhYj09PSdUxrAgbGnhu4d1Jyl7aD0nPGRpdiBjbGFzcz0ic3RyaXAiPkzGsHUgxJHGsOG7nW5nIGThuqtuIOG6o25oIGhv4bq3YyB0aMawIG3hu6VjIERyaXZlIHRyb25nIHThu6tuZyBiw6BpLiBC4bqhbiBt4bufIGxpw6puIGvhur90IMSR4buDIGzhuqV5IHTGsCBsaeG7h3U7IGLhuqNuIHRo4butIG5naGnhu4dtIGtow7RuZyB04buxIHThuqNpIOG6o25oIHThu6sgRHJpdmUuPC9kaXY+JytkYXRhLnBvc3RzLm1hcChwPT5gPGRpdiBjbGFzcz0icGFuZWwgcm93Ij48ZGl2PjxiPiR7ZXNjKHAudGl0bGUpfTwvYj48cCBjbGFzcz0ibXV0ZWQiPiR7ZXNjKHAubm90ZXx8JycpfTwvcD4ke2xpbmsocC5hc3NldFVybCwnTeG7nyB0xrAgbGnhu4d1IOKGlycpfTwvZGl2PjxidXR0b24gZGF0YS1lZGl0PSIke2VzYyhwLmlkKX0iPkfhuq9uIHTGsCBsaeG7h3U8L2J1dHRvbj48L2Rpdj5gKS5qb2luKCcnKX1lbHNle2g9YDxkaXYgY2xhc3M9InBhbmVsIj48aDI+VHJhbyDEkeG7lWkgZOG7ryBsaeG7h3UgduG7m2kgQ29udGVudCBPWUVOPC9oMj48b2w+PGxpPkV4cG9ydCBKU09OIHThu6sgYXBwIHbDoCDEkcOtbmgga8OobSB2w6BvIGThu7Egw6FuIENvbnRlbnQgT1lFTi48L2xpPjxsaT5Zw6p1IGPhuqd1IGPhuq1wIG5o4bqtdCBr4bq/IGhv4bqhY2gsIGdp4buvIHNjaGVtYSB2w6AgbcOjIGLDoGkuPC9saT48bGk+SW1wb3J0IGZpbGUga+G6v3QgcXXhuqMsIHhlbSB0csaw4bubYyBy4buTaSB4w6FjIG5o4bqtbi48L2xpPjwvb2w+PHA+VHLDuW5nIG3DozogY+G6rXAgbmjhuq10IGLDoGkuIE3DoyBt4bubaTogdGjDqm0gYsOgaS4gQsOgaSBraMO0bmcgY8OzIHRyb25nIGZpbGUgbmjhuq1wIHbhuqtuIMSRxrDhu6NjIGdp4buvLjwvcD48ZGl2IGNsYXNzPSJhY3Rpb25zIj48YnV0dG9uIG9uY2xpY2s9ImV4cG9ydERhdGEoKSI+WHXhuqV0IGThu68gbGnhu4d1IGhp4buHbiB04bqhaTwvYnV0dG9uPjxidXR0b24gb25jbGljaz0iZXhwb3J0RGF0YSh0cnVlKSI+VOG6o2kgSlNPTiBt4bqrdTwvYnV0dG9uPjxidXR0b24gY2xhc3M9InByaW1hcnkiIG9uY2xpY2s9Im9wZW5JbXBvcnQoKSI+Q2jhu41uIGZpbGUgbmjhuq1wPC9idXR0b24+PC9kaXY+PC9kaXY+PGRpdiBjbGFzcz0icGFuZWwiPjxoMz5Dw6J1IGzhu4duaCBn4butaSB2w6BvIGThu7Egw6FuIENvbnRlbnQgT1lFTjwvaDM+PHA+TMOqbiBr4bq/IGhv4bqhY2ggbuG7mWkgZHVuZyBPWUVOIHR14bqnbiB04bubaSB0aGVvIEFJREEuIETDuW5nIEpTT04gxJHDrW5oIGvDqG0gbMOgbSBj4bqldSB0csO6YywgZ2nhu68gbcOjIGLDoGkga2hpIHPhu61hLCB04bqhbyBtw6MgcmnDqm5nIGNobyBiw6BpIG3hu5tpLiBUcuG6oyB24buBIGZpbGUgSlNPTiBzY2hlbWFWZXJzaW9uIDEsIGfhu5NtIGNhbXBhaWducyB2w6AgcG9zdHMuIELDoGkgbeG7m2kgxJHhurd0IHRy4bqhbmcgdGjDoWkg4oCcQ2jhu50gZHV54buHdOKAnSwga2jDtG5nIHThu7EgxJHDoW5oIGThuqV1IOKAnMSQw6MgxJHEg25n4oCdLjwvcD48L2Rpdj5gfWRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdjb250ZW50JykuaW5uZXJIVE1MPWg7cmVuZGVyTGlzdCgpfQpmdW5jdGlvbiByZW5kZXJMaXN0KCl7Y29uc3QgZWw9ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2xpc3QnKTtpZighZWwpcmV0dXJuO2NvbnN0IHBzPWZpbHRlcmVkKCk7ZWwuaW5uZXJIVE1MPXRhYj09PSdDw7RuZyB2aeG7h2MnP2A8ZGl2IGNsYXNzPSJib2FyZCI+JHtzdGF0dXNlcy5tYXAocz0+YDxkaXY+PGgzPiR7c30gKCR7cHMuZmlsdGVyKHA9PnAuc3RhdHVzPT09cykubGVuZ3RofSk8L2gzPiR7cHMuZmlsdGVyKHA9PnAuc3RhdHVzPT09cykubWFwKGNhcmQpLmpvaW4oJycpfTwvZGl2PmApLmpvaW4oJycpfTwvZGl2PmA6YDxkaXYgY2xhc3M9ImdyaWQiPiR7cHMuc29ydCgoYSxiKT0+YS5kYXRlLmxvY2FsZUNvbXBhcmUoYi5kYXRlKSkubWFwKGNhcmQpLmpvaW4oJycpfHwnPHA+S2jDtG5nIGPDsyBiw6BpIHBow7kgaOG7o3AuPC9wPid9PC9kaXY+YH0KZnVuY3Rpb24gZWRpdFBvc3QoaWQpe2NvbnN0IHA9ZGF0YS5wb3N0cy5maW5kKHA9PnAuaWQ9PT1pZCl8fHtpZDp1aWQoKSx0aXRsZTonJyxzdGFnZTonQXR0ZW50aW9uJyxzdGF0dXM6J8OdIHTGsOG7n25nJyxkYXRlOm5ldyBEYXRlKCkudG9JU09TdHJpbmcoKS5zbGljZSgwLDEwKX07c2hvdyhgPGZvcm0gaWQ9InBvc3RGb3JtIj48aDI+JHtpZD8nQ2jhu4luaCBz4butYSBiw6BpJzonVOG6oW8gYsOgaSBt4bubaSd9PC9oMj48aW5wdXQgdHlwZT0iaGlkZGVuIiBuYW1lPSJpZCIgdmFsdWU9IiR7ZXNjKHAuaWQpfSI+PGxhYmVsPlRpw6p1IMSR4buBPC9sYWJlbD48aW5wdXQgbmFtZT0idGl0bGUiIHJlcXVpcmVkIHZhbHVlPSIke2VzYyhwLnRpdGxlKX0iPjxkaXYgY2xhc3M9ImdyaWQiPjxkaXY+PGxhYmVsPk5nw6B5IGThu7Ega2nhur9uPC9sYWJlbD48aW5wdXQgdHlwZT0iZGF0ZSIgbmFtZT0iZGF0ZSIgcmVxdWlyZWQgdmFsdWU9IiR7ZXNjKHAuZGF0ZSl9Ij48L2Rpdj48ZGl2PjxsYWJlbD5OZ8aw4budaSBwaOG7pSB0csOhY2g8L2xhYmVsPjxpbnB1dCBuYW1lPSJvd25lciIgdmFsdWU9IiR7ZXNjKHAub3duZXJ8fCdPWUVOJyl9Ij48L2Rpdj48L2Rpdj48ZGl2IGNsYXNzPSJyb3ciPjxkaXY+PGxhYmVsPkFJREE8L2xhYmVsPjxzZWxlY3QgbmFtZT0ic3RhZ2UiPiR7c3RhZ2VzLm1hcChzPT5gPG9wdGlvbiAke3M9PT1wLnN0YWdlPydzZWxlY3RlZCc6Jyd9PiR7c308L29wdGlvbj5gKS5qb2luKCcnKX08L3NlbGVjdD48L2Rpdj48ZGl2PjxsYWJlbD5UcuG6oW5nIHRow6FpPC9sYWJlbD48c2VsZWN0IG5hbWU9InN0YXR1cyI+JHtzdGF0dXNlcy5tYXAocz0+YDxvcHRpb24gJHtzPT09cC5zdGF0dXM/J3NlbGVjdGVkJzonJ30+JHtzfTwvb3B0aW9uPmApLmpvaW4oJycpfTwvc2VsZWN0PjwvZGl2PjwvZGl2PjxsYWJlbD5DaGnhur9uIGThu4tjaDwvbGFiZWw+PHNlbGVjdCBuYW1lPSJjYW1wYWlnbklkIj48b3B0aW9uIHZhbHVlPSIiPkNoxrBhIGfhuq9uPC9vcHRpb24+JHtkYXRhLmNhbXBhaWducy5tYXAoYz0+YDxvcHRpb24gdmFsdWU9IiR7ZXNjKGMuaWQpfSIgJHtwLmNhbXBhaWduSWQ9PT1jLmlkPydzZWxlY3RlZCc6Jyd9PiR7ZXNjKGMubmFtZSl9PC9vcHRpb24+YCkuam9pbignJyl9PC9zZWxlY3Q+PGxhYmVsPkNhcHRpb248L2xhYmVsPjx0ZXh0YXJlYSBuYW1lPSJjYXB0aW9uIiBpZD0iY2FwdGlvbiI+JHtlc2MocC5jYXB0aW9ufHwnJyl9PC90ZXh0YXJlYT48YnV0dG9uIHR5cGU9ImJ1dHRvbiIgb25jbGljaz0iY29weUNhcHRpb24oKSI+U2FvIGNow6lwIGNhcHRpb248L2J1dHRvbj48bGFiZWw+TGnDqm4ga+G6v3QgdMawIGxp4buHdSBHb29nbGUgRHJpdmU8L2xhYmVsPjxpbnB1dCB0eXBlPSJ1cmwiIG5hbWU9ImFzc2V0VXJsIiB2YWx1ZT0iJHtlc2MocC5hc3NldFVybHx8JycpfSI+PGxhYmVsPkxpw6puIGvhur90IGLDoGkgRmFjZWJvb2sgKGLhuq90IGJ14buZYyBraGkgxJHDoyDEkcSDbmcpPC9sYWJlbD48aW5wdXQgdHlwZT0idXJsIiBuYW1lPSJwb3N0VXJsIiB2YWx1ZT0iJHtlc2MocC5wb3N0VXJsfHwnJyl9Ij48bGFiZWw+R2hpIGNow7ogLyB5w6p1IGPhuqd1IGjDrG5oIOG6o25oPC9sYWJlbD48dGV4dGFyZWEgbmFtZT0ibm90ZSIgc3R5bGU9Im1pbi1oZWlnaHQ6NjVweCI+JHtlc2MocC5ub3RlfHwnJyl9PC90ZXh0YXJlYT48cCBjbGFzcz0ibXV0ZWQiPuKAnMSQw6MgZHV54buHdOKAnSBsw6Agc+G6tW4gc8OgbmcgxJHEg25nLiBC4bqhbiB04buxIMSRxINuZyB0csOqbiBGYWNlYm9vayBy4buTaSBsxrB1IMSRxrDhu51uZyBk4bqrbiDEkeG7gyDEkcOhbmggZOG6pXUg4oCcxJDDoyDEkcSDbmfigJ0uPC9wPjxkaXYgY2xhc3M9ImFjdGlvbnMiPjxidXR0b24gY2xhc3M9InByaW1hcnkiPkzGsHUgYsOgaTwvYnV0dG9uPjxidXR0b24gdHlwZT0iYnV0dG9uIiBvbmNsaWNrPSJjbG9zZU1vZGFsKCkiPsSQw7NuZzwvYnV0dG9uPjwvZGl2PjwvZm9ybT5gKX0KYXN5bmMgZnVuY3Rpb24gY29weUNhcHRpb24oKXtjb25zdCB0PWRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdjYXB0aW9uJyk7dHJ5e2F3YWl0IG5hdmlnYXRvci5jbGlwYm9hcmQud3JpdGVUZXh0KHQudmFsdWUpO2FsZXJ0KCfEkMOjIHNhbyBjaMOpcCBjYXB0aW9uLicpfWNhdGNoe3Quc2VsZWN0KCk7YWxlcnQoJ0jDo3kgbmjhuqVuIEN0cmwrQyBob+G6t2MgQ29tbWFuZCtDIMSR4buDIHNhbyBjaMOpcCBjYXB0aW9uIMSRw6MgY2jhu41uLicpfX1mdW5jdGlvbiBlZGl0Q2FtcGFpZ24oKXtzaG93KCc8Zm9ybSBpZD0iY2FtcGFpZ25Gb3JtIj48aDI+VGjDqm0gY2hp4bq/biBk4buLY2g8L2gyPjxsYWJlbD5Uw6puPC9sYWJlbD48aW5wdXQgbmFtZT0ibmFtZSIgcmVxdWlyZWQ+PGxhYmVsPk3hu6VjIHRpw6p1PC9sYWJlbD48dGV4dGFyZWEgbmFtZT0iZ29hbCI+PC90ZXh0YXJlYT48ZGl2IGNsYXNzPSJhY3Rpb25zIj48YnV0dG9uIGNsYXNzPSJwcmltYXJ5Ij5MxrB1PC9idXR0b24+PGJ1dHRvbiB0eXBlPSJidXR0b24iIG9uY2xpY2s9ImNsb3NlTW9kYWwoKSI+xJDDs25nPC9idXR0b24+PC9kaXY+PC9mb3JtPicpfQpmdW5jdGlvbiBleHBvcnREYXRhKHRlbXBsYXRlPWZhbHNlKXtjb25zdCBibG9iPW5ldyBCbG9iKFtKU09OLnN0cmluZ2lmeSh0ZW1wbGF0ZT9zYW1wbGU6ZGF0YSxudWxsLDIpXSx7dHlwZTonYXBwbGljYXRpb24vanNvbid9KSx1cmw9VVJMLmNyZWF0ZU9iamVjdFVSTChibG9iKSxhPWRvY3VtZW50LmNyZWF0ZUVsZW1lbnQoJ2EnKTthLmhyZWY9dXJsO2EuZG93bmxvYWQ9dGVtcGxhdGU/J295ZW5fbWFya2V0aW5nX21hdS5qc29uJzonb3llbl9tYXJrZXRpbmdfZXhwb3J0Lmpzb24nO2EuY2xpY2soKTtzZXRUaW1lb3V0KCgpPT5VUkwucmV2b2tlT2JqZWN0VVJMKHVybCksMTAwMCl9ZnVuY3Rpb24gb3BlbkltcG9ydCgpe2RvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmaWxlJykudmFsdWU9Jyc7ZG9jdW1lbnQuZ2V0RWxlbWVudEJ5SWQoJ2ZpbGUnKS5jbGljaygpfWRvY3VtZW50LmdldEVsZW1lbnRCeUlkKCdmaWxlJykub25jaGFuZ2U9YXN5bmMgZT0+e2NvbnN0IGY9ZS50YXJnZXQuZmlsZXNbMF07aWYoIWYpcmV0dXJuO3RyeXtpZihmLnNpemU+NTAwMDAwMCl0aHJvdyBFcnJvcignVnVpIGzDsm5nIGNo4buNbiBKU09OIGTGsOG7m2kgNSBNQi4nKTtwZW5kaW5nPXZhbGlkYXRlKEpTT04ucGFyc2UoYXdhaXQgZi50ZXh0KCkpKTtjb25zdCB1cGRhdGVzPXBlbmRpbmcucG9zdHMuZmlsdGVyKHA9PmRhdGEucG9zdHMuc29tZShxPT5xLmlkPT09cC5pZCkpLmxlbmd0aDtzaG93KGA8aDI+WGVtIHRyxrDhu5tjIGThu68gbGnhu4d1IG5o4bqtcDwvaDI+PHA+JHtwZW5kaW5nLnBvc3RzLmxlbmd0aC11cGRhdGVzfSBiw6BpIG3hu5tpIMK3ICR7dXBkYXRlc30gYsOgaSBj4bqtcCBuaOG6rXQgwrcgJHtwZW5kaW5nLmNhbXBhaWducy5sZW5ndGh9IGNoaeG6v24gZOG7i2NoLjwvcD48ZGl2IHN0eWxlPSJtYXgtaGVpZ2h0OjI4MHB4O292ZXJmbG93OmF1dG8iPiR7cGVuZGluZy5wb3N0cy5tYXAocD0+YDxwPjxiPiR7ZXNjKHAudGl0bGUpfTwvYj48YnI+JHtlc2MocC5kYXRlKX0gwrcgJHtlc2MocC5zdGF0dXMpfTwvcD5gKS5qb2luKCcnKX08L2Rpdj48cD5E4buvIGxp4buHdSB0csO5bmcgbcOjIHPhur0gdGhheSB0aOG6vyBu4buZaSBkdW5nIGhp4buHbiB04bqhaSBj4bunYSBiw6BpIMSRw7MuIE7Dqm4gRXhwb3J0IHRyxrDhu5tjIGtoaSBuaOG6rXAuPC9wPjxkaXYgY2xhc3M9ImFjdGlvbnMiPjxidXR0b24gY2xhc3M9InByaW1hcnkiIG9uY2xpY2s9ImNvbW1pdEltcG9ydCgpIj5Yw6FjIG5o4bqtbiBuaOG6rXA8L2J1dHRvbj48YnV0dG9uIG9uY2xpY2s9ImNsb3NlTW9kYWwoKSI+SOG7p3k8L2J1dHRvbj48L2Rpdj5gKX1jYXRjaChlcnIpe3BlbmRpbmc9bnVsbDthbGVydCgnS2jDtG5nIG5o4bqtcCDEkcaw4bujYzogJytlcnIubWVzc2FnZSl9fTtmdW5jdGlvbiBjb21taXRJbXBvcnQoKXtpZighcGVuZGluZylyZXR1cm47Zm9yKGNvbnN0IGsgb2YgWydwb3N0cycsJ2NhbXBhaWducyddKXtjb25zdCBtPW5ldyBNYXAoZGF0YVtrXS5tYXAoeD0+W3guaWQseF0pKTtwZW5kaW5nW2tdLmZvckVhY2goeD0+bS5zZXQoeC5pZCx4KSk7ZGF0YVtrXT1bLi4ubS52YWx1ZXMoKV19cGVuZGluZz1udWxsO3NhdmUoKTtjbG9zZU1vZGFsKCk7cmVuZGVyKCk7bm90aWNlKCfEkMOjIG5o4bqtcCBr4bq/IGhv4bqhY2guIENoxrBhIGPDsyBiw6BpIG7DoG8gxJHGsOG7o2MgxJHEg25nIHThu7EgxJHhu5luZy4nKX0KZG9jdW1lbnQuYWRkRXZlbnRMaXN0ZW5lcignY2xpY2snLGU9Pntjb25zdCBiPWUudGFyZ2V0LmNsb3Nlc3QoJ2J1dHRvbicpO2lmKCFiKXJldHVybjtpZihiLmRhdGFzZXQudGFiKXt0YWI9Yi5kYXRhc2V0LnRhYjtxdWVyeT0nJztyZW5kZXIoKX1pZihiLmRhdGFzZXQuZWRpdCllZGl0UG9zdChiLmRhdGFzZXQuZWRpdCl9KTtkb2N1bWVudC5hZGRFdmVudExpc3RlbmVyKCdpbnB1dCcsZT0+e2lmKGUudGFyZ2V0LmlkPT09J3NlYXJjaCcpe3F1ZXJ5PWUudGFyZ2V0LnZhbHVlO3JlbmRlckxpc3QoKX19KTtkb2N1bWVudC5hZGRFdmVudExpc3RlbmVyKCdzdWJtaXQnLGU9PntlLnByZXZlbnREZWZhdWx0KCk7Y29uc3QgZj1lLnRhcmdldDtpZihmLmlkPT09J3Bvc3RGb3JtJyl7Y29uc3QgcD1PYmplY3QuZnJvbUVudHJpZXMobmV3IEZvcm1EYXRhKGYpKTtpZighcC50aXRsZS50cmltKCkpcmV0dXJuIGFsZXJ0KCdWdWkgbMOybmcgbmjhuq1wIHRpw6p1IMSR4buBLicpO2lmKHAuc3RhdHVzPT09J8SQw6MgxJHEg25nJyYmIXNhZmUocC5wb3N0VXJsKSlyZXR1cm4gYWxlcnQoJ1Z1aSBsw7JuZyBuaOG6rXAgbGnDqm4ga+G6v3QgYsOgaSDEkcOjIMSRxINuZy4nKTtjb25zdCBpPWRhdGEucG9zdHMuZmluZEluZGV4KHg9PnguaWQ9PT1wLmlkKTtpZihpPDApZGF0YS5wb3N0cy5wdXNoKHApO2Vsc2UgZGF0YS5wb3N0c1tpXT1wfWVsc2UgaWYoZi5pZD09PSdjYW1wYWlnbkZvcm0nKWRhdGEuY2FtcGFpZ25zLnB1c2goe2lkOnVpZCgpLC4uLk9iamVjdC5mcm9tRW50cmllcyhuZXcgRm9ybURhdGEoZikpfSk7ZWxzZSByZXR1cm47c2F2ZSgpO2Nsb3NlTW9kYWwoKTtyZW5kZXIoKX0pO3JlbmRlcigpOwo8L3NjcmlwdD48L2h0bWw+Cg==';
+function renderMarketingTab(){
+  const html=new TextDecoder().decode(Uint8Array.from(atob(OYEN_MARKETING_DOCUMENT),c=>c.charCodeAt(0)));
+  return `<iframe id="oyenMarketingFrame" title="Phòng Marketing OYEN" style="width:100%;height:calc(100vh - 110px);min-height:640px;border:0;border-radius:12px;" srcdoc="${escapeHtml(html)}"></iframe>`;
+}
+
+
+const ORDER_COLORS=[{id:'red',name:'Đỏ',color:'#b94343'},{id:'orange',name:'Cam',color:'#aa6010'},{id:'green',name:'Xanh lá',color:'#317449'},{id:'blue',name:'Xanh dương',color:'#356eb8'},{id:'purple',name:'Tím',color:'#8851b1'},{id:'yellow',name:'Vàng',color:'#d39900'}];
+function tagSelectedOrders(color){
+  if(!color || (!ORDER_COLORS.some(c=>c.id===color) && color!=='none'))return;
+  DB.orders.forEach(o=>{if(selectedOrderIds.has(o.id))o.colorTag=color==='none'?'':color;});
+  persistOrders();selectedOrderIds.clear();renderMain();
+}
+function orderFromSubscriber(id){
+  const sub=subscriberOf(id);
+  if(!sub || sub.status!=='dang_hoat_dong' || sub.remainingQty<=0){alert('Gói đã hết hoặc chưa hoạt động.');return;}
+  if(!DB.customers.some(c=>c.id===sub.customerId)){alert('Không tìm thấy khách hàng của gói này.');return;}
+  openOrderModal();
+  document.querySelector('input[name="customerMode"][value="existing"]').checked=true;
+  toggleOrderCustomerMode('existing');
+  document.getElementById('orderCustomerSelect').value=sub.customerId;
+  fillCustomerContact(sub.customerId);
+  document.getElementById('orderSubSelect').value=id;
+  applySubSelection(id);
+}
+
+
+function openOrderTagModal(id){
+  const order=DB.orders.find(o=>o.id===id);if(!order)return;
+  const choices=[{id:'',name:'Không có',color:''},...ORDER_COLORS];
+  const body=`<form onsubmit="saveOrderTag(event,'${id}')">
+    <div class="field-label">Thẻ</div>
+    <div class="order-tag-options">${choices.map(c=>`<label><input type="radio" name="orderTagChoice" value="${c.id}" ${(order.colorTag||'')===c.id?'checked':''}>${c.color?`<svg width="13" height="18" viewBox="0 0 16 20" aria-hidden="true"><path d="M2 1h12v17l-6-4-6 4Z" fill="${c.color}"/></svg>`:''}${c.name}</label>`).join('')}</div>
+    <label class="field-label" for="orderTagNote">Lưu ý</label>
+    <textarea class="input" id="orderTagNote" maxlength="100" rows="5" style="min-height:150px;margin-top:10px" placeholder="Nhập lưu ý của bạn ở đây" oninput="document.getElementById('orderTagCount').textContent=this.value.length+'/100'">${escapeHtml(order.tagNote||'')}</textarea>
+    <div class="order-tag-counter" id="orderTagCount">${(order.tagNote||'').length}/100</div>
+    <div class="form-actions" style="justify-content:flex-end"><button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button><button type="submit" class="btn btn-solid">OK</button></div>
+  </form>`;
+  openModal('Thêm lưu ý',body,true);
+}
+function saveOrderTag(event,id){
+  event.preventDefault();
+  const order=DB.orders.find(o=>o.id===id);if(!order)return;
+  const color=document.querySelector('input[name="orderTagChoice"]:checked')?.value||'';
+  if(color && !ORDER_COLORS.some(c=>c.id===color))return;
+  order.colorTag=color;
+  order.tagNote=(document.getElementById('orderTagNote')?.value||'').slice(0,100);
+  persistOrders();closeModal();renderMain();
 }
 
 /* ================= START ================= */
