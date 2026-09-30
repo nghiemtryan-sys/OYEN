@@ -1304,7 +1304,7 @@ function navIsActive(key){ return TAB===key || (key==='more' && MORE_TABS.includ
 function renderMain(){
   const el = document.getElementById('mainContent');
   if(TAB==='dashboard') el.innerHTML = renderDashboard();
-  else if(TAB==='orders'){ el.innerHTML = renderOrdersTab(); refreshOrdersList(); }
+  else if(TAB==='orders'){ el.innerHTML = renderOrdersWorkspace(); if(ordersWorkspace==='list') refreshOrdersList(); }
   else if(TAB==='customers'){ el.innerHTML = renderCustomersTab(); refreshCustomersList(); }
   else if(TAB==='marketing') el.innerHTML = renderMarketingTab();
   else if(TAB==='more') el.innerHTML = renderMoreTab();
@@ -2149,13 +2149,13 @@ async function bulkDeleteOrders(){
   persistOrders();
   renderMain();
 }
-function restoreSubscriberQty(subscriberId, qty){
+function restoreSubscriberQty(subscriberId, qty, persist=true){
   const s = subscriberOf(subscriberId);
   if(!s) return;
   const pkg = packageOf(s.packageId);
   const cap = pkg ? pkg.totalQty : (s.remainingQty + qty);
   s.remainingQty = Math.min(cap, s.remainingQty + qty);
-  persistSubscribers();
+  if(persist) persistSubscribers();
 }
 async function changeOrderStatus(id, status){
   const o = DB.orders.find(x=>x.id===id); if(!o) return;
@@ -2494,7 +2494,7 @@ function openQuickOrderModal(){
   recomputeOrderTotal();
   if(hasCustomers) refreshOrderSubOptions(document.getElementById('orderCustomerSelect').value);
 }
-function submitOrder(e, orderId){
+function prepareOrderForSave(e, orderId){
   e.preventDefault();
   const order = orderId ? DB.orders.find(o=>o.id===orderId) : null;
   const orderType = order ? (order.orderType||'order') : (document.querySelector('input[name=orderType]:checked')?.value||'order');
@@ -2512,7 +2512,7 @@ function submitOrder(e, orderId){
       const name = document.getElementById('orderNewName').value.trim();
       if(!name){ alert('Vui lòng nhập tên khách hàng.'); return; }
       const newCust = { id:uid(), name, phone:document.getElementById('orderPhone').value, address:document.getElementById('orderAddress').value, vip:false, note:'', createdAt:todayISO() };
-      DB.customers.push(newCust); persistCustomers();
+      DB.customers.push(newCust);
       customerId = newCust.id; customerName = newCust.name;
     } else {
       customerId = document.getElementById('orderCustomerSelect').value;
@@ -2568,7 +2568,7 @@ function submitOrder(e, orderId){
 
   // Nếu đơn cũ đã trừ vào 1 gói đăng ký, hoàn trả số lượng trước khi tính lại
   if(order && order.subscriberId && !order.subRestored){
-    restoreSubscriberQty(order.subscriberId, order.items.reduce((s,it)=>s+it.qty,0));
+    restoreSubscriberQty(order.subscriberId, order.items.reduce((s,it)=>s+it.qty,0), false);
   }
 
   let subscriberId = null, total = items.reduce((s,it)=>s+it.price*it.qty,0);
@@ -2577,7 +2577,7 @@ function submitOrder(e, orderId){
     const s = subscriberOf(subscriberId);
     if(s){
       s.remainingQty = Math.max(0, s.remainingQty - totalQty);
-      persistSubscribers();
+
       total = 0;
     }
   }
@@ -2605,16 +2605,8 @@ function submitOrder(e, orderId){
     paidAt: packageOrderPaid ? (order?.paidAt||createdAt) : (keepsExistingPayment ? (order.paidAt||null) : null),
   };
   if(order) DB.orders = DB.orders.map(o=>o.id===orderId?newOrder:o);
-  else {
-    DB.orders.push(newOrder);
-    TAB = 'orders';
-    ordersFilter.mode = 'all';
-    ordersFilter.status = 'all';
-    ordersFilter.tag='all';ordersFilter.search='';ordersFilter.branch='all';
-  }
-  persistOrders();
-  closeModal();
-  render();
+  else DB.orders.push(newOrder);
+  return newOrder;
 }
 
 /* ================= CUSTOMER DEBTS ================= */
@@ -2901,6 +2893,8 @@ function openPackageDetail(packageId){
   const schedule = pkg.packageType==='tuan' ? `Giao vào: ${(pkg.weekdays||[]).join(', ')||'—'}` : `Chu kỳ: ngày ${pkg.monthDay||'?'} hàng tháng`;
   const threshold = pkg.warningThreshold ?? 2;
   const body = `
+    <div class="settings-row"><strong>Ngày giao cần lên đơn</strong><input class="input" type="date" style="width:170px" value="${packageOrderDate}" onchange="setPackageOrderDate(this.value,'${packageId}')"></div>
+    <p class="field-hint">Dấu ✓ kiểm tra tất cả đơn của khách trong ngày giao đã chọn, kể cả đơn tạo ngoài gói. Đơn đã hủy không tính.</p>
     <div class="detail-line">${pkg.packageType==='tuan'?'📅 Gói theo tuần':'📅 Gói theo tháng'} · ${schedule}</div>
     <div class="detail-line">💰 ${vnd(pkg.price)} / chu kỳ · Mỗi khách mới được cấp <strong>${pkg.totalQty}/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</strong></div>
     <div class="detail-line">⚠️ Cảnh báo khi khách còn ≤ ${threshold} ${escapeHtml(pkg.unitLabel||'ly')} · Khách còn 0 sẽ không thể trừ thêm khi tạo đơn</div>
@@ -2921,7 +2915,7 @@ function openPackageDetail(packageId){
         const pct = Math.min(100,(s.remainingQty/pkg.totalQty)*100);
         return `<div class="subscriber-row">
           <div style="flex:1;min-width:170px;">
-            <div class="subscriber-name">${escapeHtml(s.customerName)}</div>
+            <div class="subscriber-name">${escapeHtml(s.customerName)}</div>${packageCustomerProgress(s)}
             <div class="progress-label"><span>Còn lại</span><span><strong>${s.remainingQty}</strong>/${pkg.totalQty} ${escapeHtml(pkg.unitLabel||'ly')}</span></div>
             <div class="progress-track"><div class="progress-fill ${empty?'empty':low?'low':''}" style="width:${pct}%;"></div></div>
             ${empty ? `<div style="font-size:11.5px;font-weight:700;color:var(--red);margin-top:2px;">⚠️ Đã hết — không thể trừ thêm cho đến khi làm mới chu kỳ</div>`
@@ -2933,7 +2927,7 @@ function openPackageDetail(packageId){
             <select onchange="setSubscriberStatus('${s.id}', this.value)">
               ${SUB_STATUS.map(x=>`<option value="${x.key}" ${s.status===x.key?'selected':''}>${x.label}</option>`).join('')}
             </select>
-            <button class="btn btn-solid" ${empty||s.status!=='dang_hoat_dong'?'disabled':''} onclick="orderFromSubscriber('${s.id}')">＋ Lên đơn</button>
+            <button class="btn btn-solid" ${empty||s.status!=='dang_hoat_dong'||customerOrderOnDate(s.customerId,packageOrderDate)?'disabled':''} onclick="orderFromSubscriber('${s.id}')">＋ Lên đơn</button>
             <button class="icon-btn" onclick="renewSubscriber('${s.id}')" title="Làm mới chu kỳ (về ${pkg.totalQty}/${pkg.totalQty})">🔄</button>
             <button class="icon-btn" onclick="editSubscriberQty('${s.id}')" title="Chỉnh số lượng còn lại">✎</button>
             <button class="icon-btn" onclick="removeSubscriber('${s.id}')" title="Xóa khỏi gói">🗑</button>
@@ -3596,7 +3590,11 @@ function orderFromSubscriber(id){
   const sub=subscriberOf(id);
   if(!sub || sub.status!=='dang_hoat_dong' || sub.remainingQty<=0){alert('Gói đã hết hoặc chưa hoạt động.');return;}
   if(!DB.customers.some(c=>c.id===sub.customerId)){alert('Không tìm thấy khách hàng của gói này.');return;}
+  if(customerOrderOnDate(sub.customerId,packageOrderDate)){alert('Khách đã có đơn trong ngày giao này. Hãy sửa đơn hiện có.');return;}
+  const sourceWorkspace=TAB;
   openOrderModal();
+  const form=document.getElementById('orderForm');form.dataset.sourcePackage=sub.packageId;form.dataset.sourceWorkspace=sourceWorkspace;
+  document.getElementById('orderDeliveryDate').value=packageOrderDate;
   document.querySelector('input[name="customerMode"][value="existing"]').checked=true;
   toggleOrderCustomerMode('existing');
   document.getElementById('orderCustomerSelect').value=sub.customerId;
@@ -3803,7 +3801,7 @@ function recurringOnDate(s,date){
   const weekday=new Date(date+'T12:00:00').getDay();
   return s.active!==false && date>=s.startDate && (!s.endDate||date<=s.endDate) && (s.days||[]).includes(weekday);
 }
-function recurringOrder(s,date){return DB.orders.find(o=>o.recurringScheduleId===s.id && o.recurringDate===date);}
+function recurringOrder(s,date){return customerOrderOnDate(s.customerId,date);}
 function recurringState(s,date){return recurringOrder(s,date)?'ordered':(s.skips||[]).includes(date)?'skipped':'pending';}
 function recurringDue(date){return (DB.recurringSchedules||[]).filter(s=>recurringOnDate(s,date));}
 function setRecurringDate(date){if(date){recurringDate=date;renderMain();}}
@@ -3814,7 +3812,7 @@ function renderRecurringDue(){
  const list=recurringDue(recurringDate), pending=list.filter(s=>recurringState(s,recurringDate)==='pending');
  return `<div class="panel" style="margin-bottom:20px"><div class="panel-title">📅 Khách cần giao theo lịch</div>
  <p class="field-hint">${pending.length} lượt chưa lên đơn / ${list.length} lượt đến lịch. Chưa tạo đơn thì chưa phát sinh công nợ.</p>
- <div class="settings-row"><button class="btn" onclick="setRecurringDate(todayISO())">Hôm nay</button><button class="btn" onclick="setRecurringDate(recurringTomorrow())">Ngày mai</button><input class="input" style="width:170px" type="date" value="${recurringDate}" onchange="setRecurringDate(this.value)"><button class="btn" onclick="setTab('recurring')">Quản lý lịch</button></div>
+ <div class="settings-row"><button class="btn" onclick="setRecurringDate(todayISO())">Hôm nay</button><button class="btn" onclick="setRecurringDate(recurringTomorrow())">Ngày mai</button><input class="input" style="width:170px" type="date" value="${recurringDate}" onchange="setRecurringDate(this.value)"><button class="btn" onclick="setOrdersWorkspace('recurring')">Quản lý lịch</button></div>
  ${list.length?`<label class="settings-row"><input type="checkbox" onchange="document.querySelectorAll('.recurring-check').forEach(x=>x.checked=this.checked)">Chọn tất cả lượt chưa lên đơn</label>
  <div style="overflow:auto"><table style="width:100%;min-width:620px"><thead><tr><th>Chọn</th><th>Khách hàng / giao hàng</th><th>Số ly</th><th>Tình trạng</th><th>Thao tác</th></tr></thead><tbody>
  ${list.map(s=>{const c=DB.customers.find(c=>c.id===s.customerId),state=recurringState(s,recurringDate),o=recurringOrder(s,recurringDate);return `<tr><td>${state==='pending'?`<input type="checkbox" class="recurring-check" value="${s.id}" ${!c?'disabled':''}>`:''}</td><td><strong>${escapeHtml(c?.name||'Khách đã bị xóa')}</strong><br><small>${escapeHtml(s.time||'')} · ${escapeHtml(s.address||c?.address||'Chưa có địa chỉ')}</small></td><td>${s.qty}</td><td>${state==='ordered'?(o.status==='da_huy'?'Đơn đã hủy':`Đã lên đơn · ${escapeHtml(statusOf(o.status).label)}`):state==='skipped'?'Bỏ qua hôm nay':'Chưa lên đơn'}</td><td>${state==='ordered'?`<button class="btn btn-sm" onclick="openOrderModal('${o.id}')">Xem / sửa đơn</button>`:state==='skipped'?`<button class="btn btn-sm" onclick="skipRecurring('${s.id}',false)">Khôi phục buổi</button>`:`<button class="btn btn-solid btn-sm" ${!c?'disabled':''} onclick="openRecurringOrders(['${s.id}'])">Lên đơn</button> <button class="btn btn-sm" onclick="skipRecurring('${s.id}',true)">Bỏ qua</button>`}</td></tr>`;}).join('')}</tbody></table></div>
@@ -3958,7 +3956,7 @@ function buildRecurringOrder(s,date,draft,position){
  items:[{productId:p.id,name:p.name,price:Number(p.price),volumeMl:productVolumeMl(p),qty:draft.qty}],total:Number(p.price)*draft.qty+draft.shippingFee,shippingFee:draft.shippingFee,colorTag:'',tagNote:'',subscriberId:null,subRestored:false,deliveryDate:date,deliveryTime:draft.time,status:'cho_xac_nhan',note:s.note||'',createdAt:new Date().toISOString(),orderPosition:position,paymentStatus:'chua_thanh_toan',paidAt:null};
 }
 async function submitRecurringOrders(event){
- event.preventDefault();if(recurringBusy)return;recurringBusy=true;
+ event.preventDefault();if(recurringBusy||orderSubmitBusy)return;recurringBusy=true;
  const form=event.target,button=form.querySelector('[type=submit]');button.disabled=true;
  try{
   // Refresh before checking duplicate occurrences; preserve the existing KV storage model.
@@ -3972,6 +3970,7 @@ async function submitRecurringOrders(event){
    const s=DB.recurringSchedules.find(s=>s.id===row.dataset.id);
    if(!s||!recurringOnDate(s,date)||recurringState(s,date)!=='pending')throw new Error('Một lượt đã lên đơn, bỏ qua hoặc lịch đã đổi. Đóng cửa sổ và kiểm tra lại danh sách.');
    const value=selector=>row.querySelector(selector).value;
+   if(customerOrderOnDate(s.customerId,date,'','',created))throw new Error('Có hai lịch của cùng một khách trong ngày này. Chỉ chọn một lịch để tạo đơn.');
    created.push(buildRecurringOrder(s,date,{productId:value('.rec-product'),qty:Number(value('.rec-qty')),shippingFee:Number(value('.rec-ship')),time:value('.rec-time'),address:value('.rec-address').trim()},position++));
   }
   if(!created.length)throw new Error('Chưa chọn khách.');
@@ -3979,6 +3978,75 @@ async function submitRecurringOrders(event){
   closeModal();render();alert(`Đã tạo ${created.length} đơn chưa thanh toán. Đơn đã có trong mục Đơn hàng.`);
  }catch(e){alert('Chưa tạo đơn: '+(e.message||'Kiểm tra kết nối và thử lại.'));}
  finally{recurringBusy=false;button.disabled=false;}
+}
+
+/* Unified order workspace and one active order per customer / delivery date. */
+let ordersWorkspace='list',packageOrderDate=todayISO(),lastPackageCustomer='';
+let orderSubmitBusy=false;
+function orderPhoneKey(value){const n=String(value||'').replace(/\D/g,'');return n.startsWith('84')?'0'+n.slice(2):n;}
+function sameOrderCustomer(order,customerId,phone){
+ if(customerId && order.customerId===customerId)return true;
+ const p=orderPhoneKey(phone||DB.customers.find(c=>c.id===customerId)?.phone);
+ const other=orderPhoneKey(order.phone||DB.customers.find(c=>c.id===order.customerId)?.phone);
+ return Boolean(p&&other&&p===other);
+}
+function customerOrderOnDate(customerId,date,excludeId='',phone='',orders=DB.orders){
+ return orders.find(o=>o.id!==excludeId&&o.status!=='da_huy'&&o.deliveryDate===date&&sameOrderCustomer(o,customerId,phone));
+}
+function setOrdersWorkspace(value){ordersWorkspace=value;TAB='orders';render();}
+function renderOrdersWorkspace(){
+ const tabs=[['list','Danh sách đơn'],['packages','Lên đơn từ gói'],['recurring','Lịch giao định kỳ']];
+ const header=`<div class="order-stage-tabs">${tabs.map(([key,label])=>`<button class="order-stage-tab ${ordersWorkspace===key?'active':''}" onclick="setOrdersWorkspace('${key}')">${label}</button>`).join('')}</div>`;
+ return header+(ordersWorkspace==='packages'?renderSubscriptionsTab():ordersWorkspace==='recurring'?renderRecurringTab():renderOrdersTab());
+}
+function setPackageOrderDate(date,packageId){if(date){packageOrderDate=date;openPackageDetail(packageId);}}
+function packageCustomerProgress(sub){
+ const order=customerOrderOnDate(sub.customerId,packageOrderDate);
+ return `<div style="margin-top:6px;color:${order?'var(--green)':'var(--ink-soft)'};font-weight:700">${order?'✓ Đã lên đơn':'○ Chưa lên đơn'} · ${fmtDate(packageOrderDate)}${lastPackageCustomer===sub.customerId?' · Vừa xử lý':''}</div>`;
+}
+async function submitOrder(event,orderId){
+ event.preventDefault();if(orderSubmitBusy||recurringBusy)return;orderSubmitBusy=true;
+ const form=event.target,button=form.querySelector('[type=submit]');if(button)button.disabled=true;
+ const sourcePackage=form.dataset.sourcePackage||'',sourceWorkspace=form.dataset.sourceWorkspace||'';
+ let snapshot=null;
+ try{
+  if(supaClient){
+   const {data,error}=await supaClient.from('nuts_kv').select('key,value').in('key',['nuts:orders','nuts:customers','nuts:subscribers']);
+   if(error)throw error;
+   for(const row of data||[]){const key={'nuts:orders':'orders','nuts:customers':'customers','nuts:subscribers':'subscribers'}[row.key];DB[key]=row.value||[];}
+  }
+  const existing=orderId?DB.orders.find(o=>o.id===orderId):null;
+  if(orderId&&!existing)throw new Error('Đơn đã bị xóa ở thiết bị khác. Vui lòng tải lại danh sách.');
+  const type=existing?.orderType||document.querySelector('input[name=orderType]:checked')?.value||'order';
+  const mode=document.querySelector('input[name=customerMode]:checked')?.value||'new';
+  const customerId=existing?.customerId||(mode==='existing'?document.getElementById('orderCustomerSelect')?.value:'');
+  const phone=document.getElementById('orderPhone')?.value||'';
+  const date=document.getElementById('orderDeliveryDate')?.value;
+  if(!date)throw new Error('Vui lòng chọn ngày giao.');
+  const dup=type!=='tai_cho'&&customerOrderOnDate(customerId,date,orderId,phone);
+  if(dup)throw new Error(`Khách đã có đơn giao ngày ${fmtDate(date)}. Hãy sửa/thêm sản phẩm vào đơn hiện có thay vì tạo đơn mới.`);
+  snapshot=JSON.parse(JSON.stringify({orders:DB.orders,customers:DB.customers,subscribers:DB.subscribers}));
+  const result=prepareOrderForSave(event,orderId);
+  if(!result){Object.assign(DB,snapshot);return;}
+  const records=[{key:'nuts:orders',value:DB.orders.filter(o=>!o.portalOrderId)}];
+  if(JSON.stringify(snapshot.customers)!==JSON.stringify(DB.customers))records.push({key:'nuts:customers',value:DB.customers});
+  if(JSON.stringify(snapshot.subscribers)!==JSON.stringify(DB.subscribers))records.push({key:'nuts:subscribers',value:DB.subscribers});
+  if(supaClient){
+   const {error}=await supaClient.from('nuts_kv').upsert(records.map(r=>({...r,updated_at:new Date().toISOString()})));if(error)throw error;
+  }else for(const r of records)await writeRecurringData(r.key,r.value);
+  snapshot=null;
+  closeModal();
+  if(sourcePackage){
+   packageOrderDate=result.deliveryDate;lastPackageCustomer=result.customerId;
+   TAB=sourceWorkspace==='orders'?'orders':'subscriptions';
+   if(TAB==='orders')ordersWorkspace='packages';
+   render();openPackageDetail(sourcePackage);
+  }else{
+   if(!orderId){TAB='orders';ordersWorkspace='list';ordersFilter.mode='all';ordersFilter.status='all';ordersFilter.tag='all';ordersFilter.search='';ordersFilter.branch='all';}
+   render();
+  }
+ }catch(e){if(snapshot)Object.assign(DB,snapshot);alert('Chưa lưu đơn: '+(e.message||'Kiểm tra kết nối rồi thử lại.'));}
+ finally{orderSubmitBusy=false;if(button)button.disabled=false;}
 }
 
 /* ================= START ================= */
