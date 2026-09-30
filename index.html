@@ -3937,23 +3937,50 @@ async function skipRecurring(id,skip){
  if(await commitRecurringSchedules(next))renderMain();
 }
 function openSelectedRecurringOrders(){const ids=[...document.querySelectorAll('.recurring-check:checked')].map(x=>x.value);if(!ids.length){alert('Chọn ít nhất một khách cần lên đơn.');return;}openRecurringOrders(ids);}
+function recurringOrderItemRow(productId='',qty=1){
+ const product=DB.products.find(p=>p.id===productId);
+ return `<div class="item-row">
+ <div class="product-combobox">
+ <input class="input item-product-search" autocomplete="off" value="${escapeHtml(product?.name||'')}" placeholder="Gõ tên sản phẩm để tìm..." onfocus="showOrderProductSuggestions(this)" oninput="filterOrderProductSuggestions(this)" onkeydown="orderProductSearchKeydown(event,this)" onblur="hideOrderProductSuggestions(this)" aria-label="Tìm sản phẩm">
+ <input type="hidden" class="item-product" value="${escapeHtml(product?.id||'')}">
+ <span class="product-combobox-arrow">▼</span><div class="product-suggestions"></div></div>
+ <input type="number" class="input item-qty" min="1" step="1" required value="${qty}" aria-label="Số lượng ly">
+ <button type="button" class="row-remove" aria-label="Xóa sản phẩm" onclick="removeRecurringOrderItem(this)">✕</button></div>`;
+}
+function addRecurringOrderItem(button){
+ const list=button.closest('.rec-order-draft').querySelector('.rec-items');
+ list.insertAdjacentHTML('beforeend',recurringOrderItemRow());
+ list.lastElementChild.querySelector('.item-product-search').focus();
+}
+function removeRecurringOrderItem(button){
+ const list=button.closest('.rec-items');
+ if(list.children.length<=1){alert('Mỗi đơn cần ít nhất một sản phẩm.');return;}
+ button.closest('.item-row').remove();
+}
 function openRecurringOrders(ids){
  const date=recurringDate,list=DB.recurringSchedules.filter(s=>ids.includes(s.id)&&recurringOnDate(s,date)&&recurringState(s,date)==='pending');
  if(!list.length){alert('Các lượt đã được xử lý.');renderMain();return;}
  openModal('Lên đơn theo lịch · '+fmtDate(date),`<form id="recOrdersForm" data-date="${date}" onsubmit="submitRecurringOrders(event)">
  <p class="field-hint">Chọn món thực tế cho ngày giao. Giá lấy từ danh mục sản phẩm. Tất cả đơn này chưa thanh toán và không trừ gói.</p>
  ${list.map(s=>{const c=DB.customers.find(c=>c.id===s.customerId);return `<div class="rec-order-draft panel" data-id="${s.id}" style="margin-bottom:12px"><strong>${escapeHtml(c?.name||'Khách không tồn tại')}</strong>
- <div class="field"><label class="field-label">Sản phẩm</label><select class="input rec-product" required>${recurringProductOptions(s.productId)}</select></div>
- <div class="field-row"><div class="field"><label class="field-label">Số ly</label><input class="input rec-qty" type="number" min="1" step="1" required value="${s.qty}"></div><div class="field"><label class="field-label">Phí ship (đ)</label><input class="input rec-ship" type="number" min="0" required value="${Number(s.shippingFee)||0}"></div></div>
+ <div class="field"><label class="field-label">Sản phẩm · số ly từng món</label><div class="rec-items">${recurringOrderItemRow(s.productId,s.qty)}</div><button type="button" class="add-row-btn" onclick="addRecurringOrderItem(this)">＋ Thêm sản phẩm</button></div>
+ <div class="field"><label class="field-label">Phí ship cả đơn (đ)</label><input class="input rec-ship" type="number" min="0" required value="${Number(s.shippingFee)||0}"></div>
  <div class="field-row"><div class="field"><label class="field-label">Giờ giao</label><input class="input rec-time" type="time" value="${s.time||''}"></div><div class="field"><label class="field-label">Địa chỉ</label><input class="input rec-address" value="${escapeHtml(s.address||c?.address||'')}"></div></div>
  </div>`;}).join('')}<button class="btn btn-solid" type="submit">Tạo ${list.length} đơn chưa thanh toán</button> <button class="btn" type="button" onclick="closeModal()">Hủy</button></form>`,true);
 }
 function buildRecurringOrder(s,date,draft,position){
- const c=DB.customers.find(c=>c.id===s.customerId),p=DB.products.find(p=>p.id===draft.productId);
- if(!c||!p||!DB.branches.some(b=>b.id===s.branchId))throw new Error('Khách, sản phẩm hoặc cơ sở không còn tồn tại. Hãy sửa lịch.');
- if(!Number.isInteger(draft.qty)||draft.qty<=0||!Number.isFinite(draft.shippingFee)||draft.shippingFee<0||!Number.isFinite(Number(p.price))||Number(p.price)<0)throw new Error('Số ly, giá hoặc phí ship không hợp lệ.');
+ const c=DB.customers.find(c=>c.id===s.customerId);
+ if(!c||!DB.branches.some(b=>b.id===s.branchId))throw new Error('Khách hoặc cơ sở không còn tồn tại. Hãy sửa lịch.');
+ if(!Number.isFinite(draft.shippingFee)||draft.shippingFee<0)throw new Error('Phí ship không hợp lệ.');
+ if(!Array.isArray(draft.items)||!draft.items.length)throw new Error('Mỗi đơn cần ít nhất một sản phẩm.');
+ const items=draft.items.map(item=>{
+  const p=DB.products.find(p=>p.id===item.productId);
+  if(!p)throw new Error('Vui lòng chọn sản phẩm từ danh sách gợi ý cho từng dòng.');
+  if(!Number.isInteger(item.qty)||item.qty<=0||!Number.isFinite(Number(p.price))||Number(p.price)<0)throw new Error('Số ly phải là số nguyên dương và giá sản phẩm phải hợp lệ.');
+  return {productId:p.id,name:p.name,price:Number(p.price),volumeMl:productVolumeMl(p),qty:item.qty};
+ });
  return {id:'rec_'+s.id+'_'+date,recurringScheduleId:s.id,recurringDate:date,orderType:'order',customerId:c.id,customerName:c.name,phone:c.phone||'',address:draft.address,branchId:s.branchId,
- items:[{productId:p.id,name:p.name,price:Number(p.price),volumeMl:productVolumeMl(p),qty:draft.qty}],total:Number(p.price)*draft.qty+draft.shippingFee,shippingFee:draft.shippingFee,colorTag:'',tagNote:'',subscriberId:null,subRestored:false,deliveryDate:date,deliveryTime:draft.time,status:'cho_xac_nhan',note:s.note||'',createdAt:new Date().toISOString(),orderPosition:position,paymentStatus:'chua_thanh_toan',paidAt:null};
+ items,total:items.reduce((sum,item)=>sum+item.price*item.qty,0)+draft.shippingFee,shippingFee:draft.shippingFee,colorTag:'',tagNote:'',subscriberId:null,subRestored:false,deliveryDate:date,deliveryTime:draft.time,status:'cho_xac_nhan',note:s.note||'',createdAt:new Date().toISOString(),orderPosition:position,paymentStatus:'chua_thanh_toan',paidAt:null};
 }
 async function submitRecurringOrders(event){
  event.preventDefault();if(recurringBusy||orderSubmitBusy)return;recurringBusy=true;
@@ -3971,7 +3998,7 @@ async function submitRecurringOrders(event){
    if(!s||!recurringOnDate(s,date)||recurringState(s,date)!=='pending')throw new Error('Một lượt đã lên đơn, bỏ qua hoặc lịch đã đổi. Đóng cửa sổ và kiểm tra lại danh sách.');
    const value=selector=>row.querySelector(selector).value;
    if(customerOrderOnDate(s.customerId,date,'','',created))throw new Error('Có hai lịch của cùng một khách trong ngày này. Chỉ chọn một lịch để tạo đơn.');
-   created.push(buildRecurringOrder(s,date,{productId:value('.rec-product'),qty:Number(value('.rec-qty')),shippingFee:Number(value('.rec-ship')),time:value('.rec-time'),address:value('.rec-address').trim()},position++));
+   created.push(buildRecurringOrder(s,date,{items:[...row.querySelectorAll('.rec-items .item-row')].map(item=>({productId:item.querySelector('.item-product').value,qty:Number(item.querySelector('.item-qty').value)})),shippingFee:Number(value('.rec-ship')),time:value('.rec-time'),address:value('.rec-address').trim()},position++));
   }
   if(!created.length)throw new Error('Chưa chọn khách.');
   const next=[...DB.orders,...created];await writeRecurringData('nuts:orders',next.filter(o=>!o.portalOrderId));DB.orders=next;
