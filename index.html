@@ -768,28 +768,7 @@ function initSupabase(){
   }
   return supaReady;
 }
-function setupRealtimeSync(){
-  if(!supaClient) return;
-  const map = {'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:subscription_payments':'subscriptionPayments','nuts:customer_payments':'customerPayments','nuts:branches':'branches','nuts:raw_materials':'rawMaterials','nuts:expenses':'expenses','nuts:recurring_schedules':'recurringSchedules'};
-  supaClient.channel('nuts_kv_live')
-    .on('postgres_changes', {event:'*', schema:'public', table:'nuts_kv'}, async (payload)=>{
-      const key = payload.new?.key || payload.old?.key;
-      const field = map[key];
-      if(!field) return;
-      const knownOrderIds = field==='orders' ? new Set(DB.orders.map(o=>o.id)) : null;
-      DB[field] = await loadKey(key, DB[field]);
-      if(LOADED && knownOrderIds){
-        const added=DB.orders.filter(o=>!knownOrderIds.has(o.id)).length;
-        if(added) notifyNewOrders(added);
-      }
-      if(LOADED) renderMain();
-    }).subscribe();
-  if(PORTAL_ENABLED){
-    supaClient.channel('customer_orders_admin_live')
-      .on('postgres_changes',{event:'*',schema:'public',table:'customer_orders'},()=>syncPortalOrdersToAdmin())
-      .subscribe();
-  }
-}
+function setupRealtimeSync(){ safeRealtime(); }
 
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,8);
 const vnd = (n) => (Number(n)||0).toLocaleString('vi-VN') + 'đ';
@@ -804,28 +783,13 @@ const fmtDate = (iso) => iso ? iso.split('-').reverse().join('/') : '—';
 // Ưu tiên Supabase (đồng bộ nhiều thiết bị) nếu đã cấu hình, nếu không thì dùng
 // bộ nhớ cục bộ của trình xem file (chỉ hoạt động trên cùng 1 thiết bị/phiên).
 async function loadKey(key, fallback){
-  if(supaClient){
-    try{
-      const { data, error } = await supaClient.from('nuts_kv').select('value').eq('key', key).maybeSingle();
-      if(error) throw error;
-      return data ? data.value : fallback;
-    }catch(e){ console.error('Lỗi tải dữ liệu Supabase', key, e); }
-  }
-  try{
-    const res = await window.storage.get(key, false);
-    return res ? JSON.parse(res.value) : fallback;
-  }catch(e){ return fallback; }
+ return Object.prototype.hasOwnProperty.call(safeBase,key)?safeClone(safeBase[key]):fallback;
 }
-async function saveKey(key, value){
-  if(supaClient){
-    try{
-      const { error } = await supaClient.from('nuts_kv').upsert({ key, value, updated_at: new Date().toISOString() });
-      if(error) throw error;
-      return;
-    }catch(e){ console.error('Lỗi lưu dữ liệu Supabase', key, e); }
-  }
-  try{ await window.storage.set(key, JSON.stringify(value), false); }catch(e){ console.error('storage error', e); }
+function saveKey(key,value){
+ // Old synchronous handlers are protected by the global pending/error gate.
+ return safeEnqueue([{key,value}]).catch(error=>{safeFail(error);});
 }
+
 function seedBranches(){
   return [ { id:uid(), name:'Cơ sở chính', address:'' } ];
 }
@@ -998,7 +962,7 @@ function migrateOrderPositions(){
 async function init(){
   initSupabase();
   PORTAL_ENABLED=false;
-  await loadAdminData();
+  await safeStart();
 }
 function setupAuthWatcher(){
   if(!supaClient || setupAuthWatcher.ready) return;
@@ -1034,22 +998,7 @@ async function loadAdminData(){
   DB.subscriptionPayments = subPayments ?? [];
   DB.customerPayments = customerPayments ?? [];
   let ordersChanged=false;
-  if(!debtBaselinePaid){
-    DB.orders.forEach(order=>{
-      order.paymentStatus='da_thanh_toan';
-      order.paidAt=order.paidAt||null;
-    });
-    ordersChanged=true;
-    await saveKey('nuts:debt_baseline_paid_v1', true);
-  }
-  // Đơn đã trừ từ gói không phát sinh công nợ: luôn xem là đã thanh toán.
-  DB.orders.forEach(order=>{
-    if(order.subscriberId && !(Number(order.shippingFee)>0) && order.paymentStatus!=='da_thanh_toan'){
-      order.paymentStatus='da_thanh_toan';
-      order.paidAt=order.paidAt||order.createdAt||new Date().toISOString();
-      ordersChanged=true;
-    }
-  });
+  // Legacy debt baseline and package-paid normalization are no longer run at every startup.
   migrateRecipeIngredients();
   if(pkgs && subr){
     DB.packages = pkgs; DB.subscribers = subr;
@@ -1074,10 +1023,6 @@ async function loadAdminData(){
   if(ordersChanged) await saveKey('nuts:orders', DB.orders.filter(order=>!order.portalOrderId));
   DB.recurringSchedules = await loadKey('nuts:recurring_schedules', []);
   LOADED = true;
-  saveKey('nuts:products', DB.products);
-  saveKey('nuts:branches', DB.branches);
-  saveKey('nuts:raw_materials', DB.rawMaterials);
-  saveKey('nuts:expenses', DB.expenses);
   render();
   if(supaClient){ setupRealtimeSync(); if(PORTAL_ENABLED) await syncPortalOrdersToAdmin(); }
 }
@@ -3911,11 +3856,8 @@ async function createRecurringCustomer(){
  finally{button.disabled=false;}
 }
 
-async function writeRecurringData(key,value){
- if(supaClient){const {error}=await supaClient.from('nuts_kv').upsert({key,value,updated_at:new Date().toISOString()});if(error)throw error;}
- else if(window.storage?.set)await window.storage.set(key,JSON.stringify(value),false);
- else throw new Error('Chưa có kết nối lưu dữ liệu');
-}
+async function writeRecurringData(key,value){return safeEnqueue([{key,value}]);}
+
 async function commitRecurringSchedules(next){
  if(recurringBusy)return false;recurringBusy=true;
  try{await writeRecurringData('nuts:recurring_schedules',next);DB.recurringSchedules=next;return true;}
@@ -3986,12 +3928,6 @@ async function submitRecurringOrders(event){
  event.preventDefault();if(recurringBusy||orderSubmitBusy)return;recurringBusy=true;
  const form=event.target,button=form.querySelector('[type=submit]');button.disabled=true;
  try{
-  // Refresh before checking duplicate occurrences; preserve the existing KV storage model.
-  if(supaClient){
-   const {data,error}=await supaClient.from('nuts_kv').select('key,value').in('key',['nuts:orders','nuts:recurring_schedules']);
-   if(error)throw error;
-   for(const row of data||[]){if(row.key==='nuts:orders')DB.orders=row.value||[];else DB.recurringSchedules=row.value||[];}
-  }
   const date=form.dataset.date,created=[];let position=nextOrderPosition();
   for(const row of form.querySelectorAll('.rec-order-draft')){
    const s=DB.recurringSchedules.find(s=>s.id===row.dataset.id);
@@ -4037,11 +3973,6 @@ async function submitOrder(event,orderId){
  const sourcePackage=form.dataset.sourcePackage||'',sourceWorkspace=form.dataset.sourceWorkspace||'';
  let snapshot=null;
  try{
-  if(supaClient){
-   const {data,error}=await supaClient.from('nuts_kv').select('key,value').in('key',['nuts:orders','nuts:customers','nuts:subscribers']);
-   if(error)throw error;
-   for(const row of data||[]){const key={'nuts:orders':'orders','nuts:customers':'customers','nuts:subscribers':'subscribers'}[row.key];DB[key]=row.value||[];}
-  }
   const existing=orderId?DB.orders.find(o=>o.id===orderId):null;
   if(orderId&&!existing)throw new Error('Đơn đã bị xóa ở thiết bị khác. Vui lòng tải lại danh sách.');
   const type=existing?.orderType||document.querySelector('input[name=orderType]:checked')?.value||'order';
@@ -4058,9 +3989,7 @@ async function submitOrder(event,orderId){
   const records=[{key:'nuts:orders',value:DB.orders.filter(o=>!o.portalOrderId)}];
   if(JSON.stringify(snapshot.customers)!==JSON.stringify(DB.customers))records.push({key:'nuts:customers',value:DB.customers});
   if(JSON.stringify(snapshot.subscribers)!==JSON.stringify(DB.subscribers))records.push({key:'nuts:subscribers',value:DB.subscribers});
-  if(supaClient){
-   const {error}=await supaClient.from('nuts_kv').upsert(records.map(r=>({...r,updated_at:new Date().toISOString()})));if(error)throw error;
-  }else for(const r of records)await writeRecurringData(r.key,r.value);
+  await safeEnqueue(records);
   snapshot=null;
   closeModal();
   if(sourcePackage){
@@ -4075,6 +4004,136 @@ async function submitOrder(event,orderId){
  }catch(e){if(snapshot)Object.assign(DB,snapshot);alert('Chưa lưu đơn: '+(e.message||'Kiểm tra kết nối rồi thử lại.'));}
  finally{orderSubmitBusy=false;if(button)button.disabled=false;}
 }
+
+/* Online-only, server-checked patch transactions. No offline writes or replay. */
+const SAFE_FIELDS={'nuts:products':'products','nuts:recipes':'recipes','nuts:customers':'customers','nuts:orders':'orders','nuts:packages':'packages','nuts:subscribers':'subscribers','nuts:subscription_payments':'subscriptionPayments','nuts:customer_payments':'customerPayments','nuts:branches':'branches','nuts:raw_materials':'rawMaterials','nuts:expenses':'expenses','nuts:recurring_schedules':'recurringSchedules'};
+let safeBase={},safeReady=false,safeFailed=false,safeBooting=true,safeReading=false,safeWriting=false,safeScheduled=false,safeRefreshTimer=null;
+let safePending=new Map(),safeWaiters=[],safeLatest=null,safeEpoch=0;
+const safeClone=v=>JSON.parse(JSON.stringify(v));
+function safeEqual(a,b){
+ if(a===b)return true;if(a===null||b===null||typeof a!=='object'||typeof b!=='object')return false;
+ const ak=Object.keys(a),bk=Object.keys(b);return ak.length===bk.length&&ak.every(k=>Object.prototype.hasOwnProperty.call(b,k)&&safeEqual(a[k],b[k]));
+}
+function safeItems(v){return Array.isArray(v)&&v.every(x=>x&&typeof x.id==='string'&&x.id)&&new Set(v.map(x=>x.id)).size===v.length;}
+function safeChanges(records){
+ const changes=[];
+ for(const record of records){
+  const {key,value}=record;
+  const had=record.had??Object.prototype.hasOwnProperty.call(safeBase,key),before=Object.prototype.hasOwnProperty.call(record,'base')?record.base:safeBase[key];
+  if(had&&safeEqual(before,value))continue;
+  if(safeItems(value)&&(!had||safeItems(before))){
+   const a=new Map((before||[]).map(x=>[x.id,x])),b=new Map(value.map(x=>[x.id,x])),ops=[];
+   for(const id of new Set([...a.keys(),...b.keys()]))if(!safeEqual(a.get(id),b.get(id)))ops.push({id,had:a.has(id),before:a.get(id)||null,after:b.get(id)||null});
+   if(ops.length||!had)changes.push({key,mode:'items',ops});
+  }else changes.push({key,mode:'value',had,before:had?before:null,after:value});
+ }
+ return changes;
+}
+function safeMessage(error){
+ const m=String(error?.message||error||'');
+ if(/OYEN_CONFLICT/.test(m))return 'Dữ liệu này vừa được thay đổi trên máy khác. Thao tác của bạn chưa được lưu. Bấm tải lại rồi kiểm tra trước khi thực hiện lại.';
+ if(/OYEN_DUPLICATE_ORDER/.test(m))return 'Khách đã có đơn trong ngày giao này. Đơn mới và phần trừ ly đi kèm chưa được lưu. Tải lại để xem đơn hiện có.';
+ if(/PGRST202|oyen_sync_v1|schema cache|does not exist/.test(m))return 'Chưa cài bản cập nhật đồng bộ trên Supabase. Chạy file OYEN_SAFE_SYNC.sql đi kèm, rồi tải lại app.';
+ return 'Không xác nhận được kết nối hoặc kết quả lưu trên máy chủ. App đã khóa thao tác. Tải lại dữ liệu trước khi làm tiếp; không tạo lại đơn ngay vì lần lưu vừa rồi có thể đã tới máy chủ.';
+}
+function safeOverlay(message,locked=true){
+ let el=document.getElementById('oyenSyncGate');
+ if(!el){el=document.createElement('div');el.id='oyenSyncGate';el.style.cssText='position:fixed;inset:0;z-index:2147483647;background:#102c23df;display:flex;align-items:center;justify-content:center;padding:20px;color:#183d2f;';document.body.appendChild(el);}
+ if(!locked){el.hidden=true;el.style.display='none';return;}
+ el.hidden=false;el.style.display='flex';el.tabIndex=-1;el.focus();
+ el.innerHTML='<div style="background:white;border-radius:18px;padding:26px;max-width:540px;line-height:1.65"><h3 style="margin-top:0">OYEN · Trạng thái đồng bộ</h3><p id="oyenSyncMessage" role="alert"></p><div id="oyenSyncActions"></div></div>';
+ document.getElementById('oyenSyncMessage').textContent=message;
+ if(safeFailed){
+  const b=document.createElement('button');b.className='btn btn-solid';b.textContent='Tải lại dữ liệu từ máy chủ';b.onclick=()=>location.reload();document.getElementById('oyenSyncActions').appendChild(b);
+ }
+}
+function safeFail(error){safeFailed=true;safeReady=false;safeOverlay(safeMessage(error));}
+async function safeRpc(changes){
+ if(!supaClient||navigator.onLine===false)throw new Error('offline');
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),20000);
+ try{
+  const {data,error}=await supaClient.rpc('oyen_sync_v1',{p_changes:changes}).abortSignal(controller.signal);
+  if(error)throw error;if(data?.protocol!==1||!data.values)throw new Error('oyen_sync_v1 missing');return data.values;
+ }finally{clearTimeout(timer);}
+}
+function safeEnqueue(records){
+ if(safeFailed||(!safeReady&&!safeBooting)||navigator.onLine===false){const e=new Error('offline');safeFail(e);return Promise.reject(e);}
+ safeEpoch++;
+ for(const r of records){const prior=safePending.get(r.key);safePending.set(r.key,{key:r.key,value:safeClone(r.value),had:prior?prior.had:Object.prototype.hasOwnProperty.call(safeBase,r.key),base:prior?prior.base:(Object.prototype.hasOwnProperty.call(safeBase,r.key)?safeClone(safeBase[r.key]):undefined)});}
+ safeOverlay('Đang lưu và xác nhận trên máy chủ…');
+ const promise=new Promise((resolve,reject)=>safeWaiters.push({resolve,reject}));
+ if(!safeScheduled&&!safeWriting){safeScheduled=true;setTimeout(safeFlush,0);}return promise;
+}
+async function safeFlush(){
+ safeScheduled=false;if(safeWriting)return;
+ const records=[...safePending.values()],waiters=safeWaiters;
+ safePending=new Map();safeWaiters=[];safeWriting=true;
+ try{
+  if(safeFailed)throw new Error('offline');
+  const changes=safeChanges(records);
+  const values=changes.length?await safeRpc(changes):safeBase;
+  safeBase=safeClone(values);safeLatest=safeClone(values);
+  for(const w of waiters)w.resolve();
+ }catch(e){
+  safeFail(e);for(const w of waiters)w.reject(e);
+  for(const w of safeWaiters)w.reject(e);safeWaiters=[];safePending.clear();
+ }finally{
+  safeWriting=false;
+  // Let legacy form continuations finish before applying the authoritative snapshot.
+  setTimeout(()=>{
+   if(safeFailed)return;
+   if(safePending.size){if(!safeScheduled){safeScheduled=true;setTimeout(safeFlush,0);}return;}
+   if(safeWriting||safeScheduled||safeBooting)return;
+   if(safeLatest){safeApply(safeLatest);safeLatest=null;}
+   safeOverlay('',false);
+  },0);
+ }
+}
+function safeApply(values){
+ const prior=new Set(DB.orders.map(o=>o.id));
+ for(const [key,field] of Object.entries(SAFE_FIELDS))if(Object.prototype.hasOwnProperty.call(values,key))DB[field]=safeClone(values[key]);
+ if(LOADED){renderMain();const added=DB.orders.filter(o=>!prior.has(o.id)).length;if(added)notifyNewOrders(added);}
+}
+async function safeRefresh(){
+ if(!safeReady||safeFailed||safeWriting||safeScheduled||safePending.size||safeReading||safeBooting)return;
+ // Freeze the baseline while a form is open so another machine's edit causes a conflict, not a silent overwrite.
+ if(document.getElementById('modalRoot')?.childElementCount)return;
+ safeReading=true;const epoch=safeEpoch;
+ try{
+  const values=await safeRpc([]);
+  if(epoch===safeEpoch&&!safeWriting&&!safeScheduled&&!safePending.size&&!document.getElementById('modalRoot')?.childElementCount&&!safeEqual(safeBase,values)){safeBase=safeClone(values);safeApply(values);}
+ }catch(e){safeFail(e);}finally{safeReading=false;}
+}
+function safeRealtime(){
+ if(safeRealtime.started||!supaClient)return;safeRealtime.started=true;
+ supaClient.channel('oyen_safe_sync').on('postgres_changes',{event:'*',schema:'public',table:'nuts_kv'},()=>{
+  clearTimeout(safeRefreshTimer);safeRefreshTimer=setTimeout(safeRefresh,350);
+ }).subscribe();
+ setInterval(async()=>{
+  if(!safeReady||safeWriting||safeScheduled||safeFailed)return;
+  if(document.getElementById('modalRoot')?.childElementCount){try{await safeRpc([]);}catch(e){safeFail(e);}}
+  else safeRefresh();
+ },15000);
+}
+async function safeStart(){
+ safeOverlay('Đang kiểm tra kết nối và tải dữ liệu…');
+ try{
+  safeBase=safeClone(await safeRpc([]));safeReady=true;
+  await loadAdminData();
+  // Flush any synchronous initialization saves as one transaction.
+  while(safeWriting||safeScheduled||safePending.size)await new Promise(r=>setTimeout(r,20));
+  if(safeFailed)throw new Error('startup failed');
+  safeBooting=false;safeApply(safeBase);safeLatest=null;safeOverlay('',false);
+ }catch(e){safeBooting=false;safeFail(e);}
+}
+window.addEventListener('offline',()=>safeFail(new Error('offline')));
+window.addEventListener('online',()=>{if(safeFailed)safeOverlay('Đã có tín hiệu mạng. Bấm tải lại để kiểm tra máy chủ và lấy dữ liệu mới nhất.');});
+window.addEventListener('beforeunload',e=>{if(safeWriting||safeScheduled||safePending.size){e.preventDefault();e.returnValue='';}});
+for(const name of ['click','submit','change','input','keydown','drop','dragstart'])document.addEventListener(name,e=>{
+ if(e.target.closest?.('#oyenSyncGate'))return;
+ if(navigator.onLine===false&&!safeFailed)safeFail(new Error('offline'));
+ if(!safeReady||safeFailed||safeWriting||safeScheduled||safePending.size){e.preventDefault();e.stopImmediatePropagation();}
+},true);
 
 /* ================= START ================= */
 showWelcome();
