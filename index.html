@@ -1963,6 +1963,7 @@ function refreshOrdersList(){
             : `<button class="btn btn-solid" style="padding:7px 10px;font-size:12.5px;background:var(--red);" onclick="confirmOrderPaid('${o.id}')">💳 Duyệt đã thanh toán</button>`):'')}
       </div>
       <div style="display:flex;gap:2px;">
+        <button class="icon-btn" onclick="printOyenOrders('${o.id}')" title="In tem đơn hàng" aria-label="In tem đơn hàng">🖨️</button>
         <button class="icon-btn" onclick="moveOrderToTop('${o.id}')" title="Chuyển đơn lên trên cùng" aria-label="Chuyển đơn lên trên cùng">⇈</button>
         <button class="icon-btn" onclick="openOrderModal('${o.id}')" title="Sửa">✎</button>
         <button class="icon-btn" onclick="deleteOrder('${o.id}')" title="Xóa">🗑</button>
@@ -2052,6 +2053,7 @@ function renderOrderBulkBar(list){
   bar.innerHTML=`<div class="bulk-bar">
     <label class="bulk-select"><input type="checkbox" ${allSelected?'checked':''} onchange="toggleAllVisibleOrders(this.checked)"> Chọn tất cả</label>
     <span class="bulk-count">Đã chọn <strong>${selected.length}</strong> đơn</span>
+    <button class="btn btn-ghost" ${selected.length?'':'disabled'} onclick="printOyenOrders()">🖨️ In tem (${selected.length})</button>
     <select class="input" style="width:175px" aria-label="Gắn thẻ đơn đã chọn" ${selected.length?'':'disabled'} onchange="tagSelectedOrders(this.value)"><option value="">Gắn thẻ màu…</option>${ORDER_COLORS.map(c=>`<option value="${c.id}">${c.name}</option>`).join('')}<option value="none">Bỏ thẻ màu</option></select>
     ${canArrange?`<button class="btn btn-solid" ${selected.length?'':'disabled'} onclick="bulkUpdateOrderStatus('dang_giao')">Sắp xếp vận chuyển</button>`:''}
     ${canComplete?`<button class="btn btn-ghost" ${selected.length?'':'disabled'} onclick="bulkUpdateOrderStatus('hoan_thanh')">✓ Đã vận chuyển</button>`:''}
@@ -3598,16 +3600,65 @@ function customerSearchKey(event){
   if(event.key==='Escape')box.hidden=true;
   if((event.key==='ArrowDown'||event.key==='Enter')&&!box.hidden){event.preventDefault();const b=box.querySelector('button');if(event.key==='Enter')b?.click();else b?.focus();}
 }
+
+/* Order labels: read-only, no payment or package fields. */
+function oyenLabelMarkup(order,index,count){
+  const text=escapeHtml;
+  return `<section class="label"><div class="label-content">
+    <header><strong>OYEN</strong><span>TEM GIAO HÀNG · ${index+1}/${count}</span></header>
+    <div class="meta">Mã đơn: ${text(order.id)}</div>
+    <h2>${text(order.customerName||'Khách tại quầy')}</h2>
+    ${order.phone?`<div class="contact">SĐT: ${text(order.phone)}</div>`:''}
+    ${order.orderType==='tai_cho'?'<div class="contact">Bán tại chỗ</div>':`<div class="contact">Địa chỉ: ${text(order.address||'Chưa có địa chỉ')}</div>`}
+    <div class="meta">Ngày giao: <b>${text(fmtDate(order.deliveryDate))}${order.deliveryTime?' · '+text(order.deliveryTime):''}</b></div>
+    ${order.branchId?`<div class="meta">Cơ sở: ${text(branchName(order.branchId))}</div>`:''}
+    <table><thead><tr><th>Món</th><th>SL</th></tr></thead><tbody>${(order.items||[]).map(item=>`<tr><td>${text(item.name)}</td><td>${text(item.qty)}</td></tr>`).join('')}</tbody></table>
+    <div class="total">Tổng số lượng: ${(order.items||[]).reduce((n,item)=>n+(Number(item.qty)||0),0)}</div>
+    ${String(order.note||'').trim()?`<div class="note"><b>GHI CHÚ:</b> ${text(order.note)}</div>`:''}
+    ${String(order.tagNote||'').trim()?`<div class="note"><b>LƯU Ý:</b> ${text(order.tagNote)}</div>`:''}
+  </div></section>`;
+}
+function printOyenOrders(orderId){
+  const list=orderId?DB.orders.filter(o=>o.id===orderId):ordersForCurrentFilters().filter(o=>selectedOrderIds.has(o.id)).sort(compareOrderPosition);
+  if(!list.length){alert('Chọn ít nhất một đơn để in tem.');return;}
+  const win=window.open('','_blank');
+  if(!win){alert('Trình duyệt đang chặn cửa sổ in. Cho phép cửa sổ bật lên cho app rồi bấm In tem lại.');return;}
+  win.document.write(`<!DOCTYPE html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OYEN - In tem đơn hàng</title><style>
+  *{box-sizing:border-box}body{margin:0;background:#e5e7eb;color:#000;font-family:Arial,sans-serif;font-size:12px}.toolbar{position:sticky;top:0;z-index:2;background:white;padding:12px;box-shadow:0 1px 5px #aaa;display:flex;gap:12px;flex-wrap:wrap;align-items:center}.toolbar button,.toolbar select{font:inherit;padding:9px;cursor:pointer}.toolbar p{flex-basis:100%;margin:0;line-height:1.5}.label{background:#fff;margin:16px auto;padding:4mm;overflow:hidden;break-after:page;page-break-after:always}.label:last-child{break-after:auto;page-break-after:auto}.label-content{transform-origin:top left;overflow-wrap:anywhere}header{display:flex;justify-content:space-between;align-items:center;border-bottom:2px solid #000;padding-bottom:6px;gap:6px}header strong{font-size:21px}header span{font-size:9px}h2{font-size:17px;margin:8px 0}.contact{font-size:13px;font-weight:700;line-height:1.4;margin:4px 0}.meta{font-size:11px;margin-top:5px;line-height:1.35}table{width:100%;border-collapse:collapse;margin-top:8px}th,td{text-align:left;border-bottom:1px solid #000;padding:5px 2px;vertical-align:top}th:last-child,td:last-child{text-align:right;width:11mm;font-weight:bold}.total{font-weight:bold;margin-top:7px}.note{border:1.5px solid #000;padding:5px;margin-top:7px;white-space:pre-wrap;font-weight:700;line-height:1.4}
+  @media print{body{background:white}.toolbar{display:none!important}.label{margin:0;box-shadow:none}*{color:#000!important}}
+  </style><style id="paperStyle"></style></head><body><div class="toolbar"><label>Khổ giấy <select id="paper"><option value="A7">A7 · 74 × 105 mm</option><option value="A6">A6 · 105 × 148 mm</option></select></label><button id="printButton">In ${list.length} tem</button><p>Mỗi đơn một tem. Chọn cùng khổ giấy trong máy in, in dọc, tỷ lệ 100%, tắt đầu trang/chân trang. Nội dung dài tự thu nhỏ; chọn A6 nếu chữ quá nhỏ.</p></div>${list.map((o,i)=>oyenLabelMarkup(o,i,list.length)).join('')}</body></html>`);
+  win.document.close();
+  const select=win.document.getElementById('paper');
+  select.value=deviceSettings.printPaper==='A6'?'A6':'A7';
+  const fit=()=>{
+    win.document.querySelectorAll('.label').forEach(label=>{
+      const inner=label.querySelector('.label-content');inner.style.transform='none';
+      const cs=win.getComputedStyle(label), available=label.clientHeight-parseFloat(cs.paddingTop)-parseFloat(cs.paddingBottom);
+      const scale=Math.min(1,available/Math.max(1,inner.scrollHeight));
+      inner.style.transform=`scale(${scale})`;
+    });
+  };
+  const layout=()=>{
+    const a6=select.value==='A6',w=a6?105:74,h=a6?148:105;
+    win.document.getElementById('paperStyle').textContent=`@page{size:${w}mm ${h}mm;margin:0}.label{width:${w}mm;height:${h}mm}`;
+    fit();
+  };
+  select.addEventListener('change',()=>{storeDeviceSettings({printPaper:select.value});layout();});
+  win.document.getElementById('printButton').addEventListener('click',()=>{layout();win.focus();win.print();});
+  win.addEventListener('beforeprint',fit);
+  layout();
+}
+
 /* Device preferences never alter orders, customers or server data. */
 const OYEN_PREF_KEY='oyen:device-settings:v1';
-const OYEN_PREF_DEFAULTS={welcome:true,motion:true,duration:5500,image:'',inApp:true,native:false};
+const OYEN_PREF_DEFAULTS={welcome:true,motion:true,duration:5500,image:'',inApp:true,native:false,printPaper:'A7'};
 function readDeviceSettings(){
   try{
     const p=JSON.parse(localStorage.getItem(OYEN_PREF_KEY)||'{}');
     return {welcome:p.welcome!==false,motion:p.motion!==false,
       duration:[3000,5500,8000,0].includes(p.duration)?p.duration:5500,
       image:typeof p.image==='string' && /^data:image\/(png|jpeg|webp);base64,/.test(p.image)?p.image:'',
-      inApp:p.inApp!==false,native:p.native===true};
+      inApp:p.inApp!==false,native:p.native===true,printPaper:p.printPaper==='A6'?'A6':'A7'};
   }catch(e){return {...OYEN_PREF_DEFAULTS};}
 }
 let deviceSettings=readDeviceSettings();
@@ -3688,6 +3739,9 @@ function renderDeviceSettings(){
     <p class="settings-help">JPG, PNG, WebP tối đa 1,5 MB. Ảnh sẽ hiển thị đầy đủ, không cắt mặt; ảnh dọc phù hợp màn hình iPhone. Ảnh mới có chuyển động nhẹ toàn ảnh. Ảnh và cài đặt chỉ lưu trên thiết bị này; xóa dữ liệu trình duyệt sẽ đưa về mặc định.</p>
     ${p.image?`<img class="settings-preview" src="${escapeHtml(p.image)}" alt="Ảnh chào đã chọn">`:'<p class="settings-help">Đang sử dụng ảnh OYEN mặc định.</p>'}
     <div class="settings-row"><button class="btn btn-solid" onclick="showWelcome(true)">Xem thử màn hình chào</button><button class="btn" onclick="resetWelcomeImage()">Dùng lại ảnh mặc định</button></div></div>
+    <div class="panel settings-block"><div class="panel-title">🖨️ In tem đơn hàng</div>
+    <label class="settings-row">Khổ giấy mặc định <select onchange="changeDeviceSetting('printPaper',this.value)"><option value="A7" ${p.printPaper!=='A6'?'selected':''}>A7 · 74 × 105 mm</option><option value="A6" ${p.printPaper==='A6'?'selected':''}>A6 · 105 × 148 mm</option></select></label>
+    <p class="settings-help">Mỗi đơn một tem, in dọc, đen trắng. Không in số tiền, thanh toán hoặc thông tin gói. Cài đặt lưu trên thiết bị này. Trong hộp thoại in, chọn đúng khổ giấy, tỷ lệ 100%, tắt đầu trang/chân trang.</p></div>
     <h3>Đồng bộ dữ liệu</h3>`;
 }
 async function initNotificationWorker(){
