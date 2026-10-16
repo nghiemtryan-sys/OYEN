@@ -1,0 +1,7 @@
+index.before-social*.html
+social-preview.html
+*.md
+supabase/
+tests/
+.env*
+*.zip
