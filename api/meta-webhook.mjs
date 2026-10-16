@@ -1,9 +1,13 @@
 import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 const MAX_BYTES = 1024 * 1024;
-const reply = (text, status = 200, extra = {}) => new Response(text, {
-  status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...extra }
-});
+const reply = (text, status = 200, extra = {}) => {
+  // Static failure reasons only: never log tokens, signatures or message bodies.
+  if (status >= 400) console.warn('[OYEN webhook] ' + status + ' ' + text);
+  return new Response(text, {
+    status, headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store', ...extra }
+  });
+};
 function same(a, b) {
   const left = Buffer.from(a), right = Buffer.from(b);
   return left.length === right.length && timingSafeEqual(left, right);
