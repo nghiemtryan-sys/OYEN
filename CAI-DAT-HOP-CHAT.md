@@ -19,7 +19,7 @@ API tự dùng `/api/social?route=...` trên cùng domain. Không cần nhập �
 ## Phạm vi hiện tại
 
 - Hiển thị các tin Messenger nhận qua webhook sau khi kết nối; không tải lịch sử Facebook trước thời điểm kết nối.
-- Tên khách tạm hiển thị theo đuôi mã Facebook. Điền tên/điện thoại/địa chỉ khách khi lên đơn. File đính kèm hiển thị thông báo, chưa tải file về app.
+- Tên và ảnh khách được đọc bằng User Profile API khi có Page Access Token hợp lệ. Nếu chưa cấu hình hoặc Meta chưa cấp quyền, app giữ tên theo đuôi mã Facebook và chữ cái đại diện. File đính kèm hiển thị thông báo, chưa tải file về app.
 - Làm mới thủ công; tối đa 100 hội thoại gần nhất và 200 tin gần nhất mỗi hội thoại, có thông báo khi vượt giới hạn.
 - Chưa bật gửi trả lời, bình luận, Zalo hoặc TikTok. Trạng thái quyền của API giữ các nút chưa khả dụng ở trạng thái tắt. Gửi Messenger cần Page Access Token được cấp đúng quyền và xử lý quy tắc gửi tin của Meta; không nhập token vào giao diện trình duyệt.
 - Đăng xuất hộp chat xóa dữ liệu hội thoại/bản nháp trong phiên hiển thị. Các chức năng đơn hàng hiện có vẫn theo cơ chế đồng bộ cũ của app.
@@ -29,3 +29,12 @@ API tự dùng `/api/social?route=...` trên cùng domain. Không cần nhập �
 `node --test tests/meta-webhook.test.mjs tests/social.test.mjs`
 
 `tests/social-inbox.sql` là kiểm tra tích hợp chạy trong transaction và rollback dữ liệu giả. Không gửi tin nhắn đến Facebook.
+
+## Nhớ phiên đăng nhập và hồ sơ khách
+
+- Hộp chat tự khôi phục phiên Supabase đã lưu trên cùng trình duyệt/domain, tự làm mới token và tải Facebook khi vào mục Mạng xã hội. Vẫn cần đăng nhập lần đầu, khi tự đăng xuất, xóa dữ liệu trình duyệt hoặc phiên bị thu hồi/hết hiệu lực.
+- Đăng xuất ở tab khác cũng dọn hội thoại và bản nháp trong màn hình hiện tại. Máy chủ tiếp tục kiểm tra UUID quản trị trên mọi yêu cầu.
+- Với một Page: đặt `META_PAGE_ACCESS_TOKEN` ở Vercel Production, loại Secret, rồi Redeploy. Token phải thuộc Page đã khai báo trong `META_PAGE_IDS` và có quyền đọc hồ sơ Messenger cần thiết. Không dùng App Secret, verify token hoặc khóa Supabase thay Page token.
+- Với nhiều Page: dùng `META_PAGE_ACCESS_TOKENS` là JSON ánh xạ Page ID sang token riêng. Không tự dùng một token chung cho nhiều Page. `META_GRAPH_VERSION` tùy chọn, mặc định `v26.0`.
+- API đọc tối đa 8 hồ sơ chưa có trong bộ nhớ đệm mỗi lượt tải danh sách, tối đa 4 yêu cầu song song; chọn một hội thoại sẽ lấy hồ sơ riêng của khách đó. Bộ nhớ đệm phía máy chủ lưu kết quả thành công 10 phút, lỗi 30 giây. Bấm Làm mới để lấy thêm tên trong danh sách lớn.
+- Bật token hồ sơ không tự bật nút gửi tin. Backend trả lỗi riêng cho tính năng chưa triển khai.
