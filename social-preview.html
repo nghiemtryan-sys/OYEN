@@ -1,0 +1,591 @@
+<!doctype html><html lang="vi"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>OYEN · Xem thử Mạng xã hội</title><style>
+  :root{
+    --bg:#F3F6FC; --panel:#FFFFFF; --panel-alt:#EAF1FE;
+    --ink:#1F2430; --ink-soft:#66707E; --ink-faint:#98A2B3;
+    --green:#2F6FED; --green-soft:#2558C4; --gold:#B5852B; --red:#E0483B; --blue:#2F6FED;
+    --line:#E3E8F0; --line-soft:#EEF2F8;
+    --icon-green:#E3ECFE; --icon-gold:#FBF0DC; --icon-blue:#E3ECFE; --icon-red:#FDE7E4;
+    --grad-start:#4C8DFF; --grad-end:#1B4FD1;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{font-family:'Segoe UI', system-ui, -apple-system, sans-serif; background:var(--bg); color:var(--ink);}
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#DED2B4;border-radius:8px;}
+  input,select,textarea,button{font-family:inherit;}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green);box-shadow:0 0 0 3px rgba(47,70,48,0.12);}
+  button:focus-visible{outline:2px solid var(--green);outline-offset:2px;}
+
+  .app{display:flex;min-height:100vh;}
+  .sidebar{width:226px;background:#fff;border-right:1px solid var(--line);color:var(--ink);flex-shrink:0;padding:26px 16px;position:sticky;top:0;height:100vh;overflow-y:auto;}
+  .brand{display:flex;align-items:center;gap:10px;margin-bottom:30px;padding-left:6px;}
+  .brand-badge{width:36px;height:36px;border-radius:11px;background:linear-gradient(135deg,var(--grad-start),var(--grad-end));color:#fff;display:flex;align-items:center;justify-content:center;font-size:17px;font-weight:800;flex-shrink:0;box-shadow:0 4px 10px rgba(47,111,237,0.3);}
+  .brand-name{font-weight:800;font-size:16px;letter-spacing:.2px;color:var(--ink);}
+  .brand-sub{font-size:11px;color:var(--ink-faint);}
+  .navlist{display:flex;flex-direction:column;gap:3px;}
+  .navitem{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;border:none;cursor:pointer;text-align:left;font-size:14px;font-weight:600;background:transparent;color:var(--ink-soft);width:100%;}
+  .navitem:hover{background:var(--panel-alt);}
+  .navitem.active{background:var(--panel-alt);color:var(--green);}
+  .navicon{font-size:16px;width:18px;text-align:center;}
+
+  .mobileheader{display:none;align-items:center;justify-content:space-between;padding:14px 16px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:40;}
+  .mobileheader-greet{font-size:11.5px;color:var(--ink-faint);}
+  .mobileheader-name{font-weight:800;font-size:15.5px;color:var(--ink);}
+  .mobileheader-bell{font-size:18px;background:var(--panel-alt);width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;border:none;cursor:pointer;}
+
+  .mobilenav{display:none;position:fixed;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);z-index:50;padding:8px 4px;justify-content:space-around;box-shadow:0 -2px 14px rgba(20,30,60,0.06);}
+  .mobilenav button{background:none;border:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:2px;color:var(--ink-faint);font-size:9.5px;font-weight:600;padding:4px;}
+  .mobilenav button.active{color:var(--green);}
+  .mobilenav .navicon{font-size:17px;}
+
+  .fab{position:fixed;right:22px;bottom:28px;width:56px;height:56px;border-radius:50%;background:linear-gradient(135deg,var(--grad-start),var(--grad-end));color:#fff;border:none;font-size:27px;line-height:1;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 10px 22px rgba(47,111,237,0.4);z-index:60;}
+  .fab:hover{filter:brightness(1.06);}
+
+  .segmented{display:inline-flex;background:var(--panel-alt);border-radius:12px;padding:4px;gap:2px;}
+  .segmented button{border:none;background:transparent;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;}
+  .segmented button.active{background:#fff;color:var(--ink);box-shadow:0 1px 5px rgba(20,30,60,0.14);}
+  .range-extra{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .range-extra button{border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:20px;cursor:pointer;}
+  .range-extra button.active{background:var(--green);border-color:var(--green);color:#fff;}
+  .order-stage-tabs{display:flex;gap:8px;overflow-x:auto;margin:0 0 16px;padding-bottom:2px;scrollbar-width:thin;}
+  .order-stage-tab{border:1px solid var(--line);background:#fff;color:var(--ink-soft);border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;}
+  .order-stage-tab.active{background:var(--green);border-color:var(--green);color:#fff;box-shadow:0 4px 12px rgba(47,111,87,.18);}
+  .order-check{display:flex;align-items:center;justify-content:center;padding:6px;cursor:pointer;}
+  .order-check input,.bulk-select input{width:17px;height:17px;accent-color:var(--green);cursor:pointer;}
+  .bulk-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--panel-alt);border:1px solid var(--line-soft);border-radius:12px;padding:10px 12px;margin-bottom:12px;}
+  .bulk-select{display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
+  .bulk-count{font-size:13px;color:var(--ink-soft);margin-right:auto;}
+  .order-workflow-actions{display:flex;gap:7px;align-items:center;flex-wrap:wrap;}
+  .more-card{display:flex;align-items:center;gap:14px;text-align:left;width:100%;background:var(--panel);border:1px solid var(--line-soft);border-radius:14px;padding:18px;cursor:pointer;color:var(--ink);}
+  .more-card:hover{border-color:var(--green-soft);background:var(--panel-alt);}
+  .more-card-icon{width:46px;height:46px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;background:var(--icon-green);flex:0 0 auto;}
+  .more-card-title{font-size:15px;font-weight:800;}
+  .more-card-sub{font-size:12.5px;color:var(--ink-soft);margin-top:3px;}
+
+  .auth-page{min-height:100vh;display:grid;place-items:center;padding:24px;background:linear-gradient(145deg,#f5f0e8,#eef5ef);}
+  .auth-card{width:min(460px,100%);background:#fff;border:1px solid var(--line-soft);border-radius:20px;padding:28px;box-shadow:0 18px 45px rgba(35,55,45,.13);}
+  .auth-logo{width:58px;height:58px;border-radius:17px;background:var(--green);color:#fff;display:grid;place-items:center;font-size:28px;font-weight:900;margin-bottom:16px;}
+  .auth-tabs{display:grid;grid-template-columns:1fr 1fr;background:var(--panel-alt);padding:4px;border-radius:11px;margin:18px 0;}
+  .auth-tabs button{border:0;background:transparent;padding:9px;border-radius:8px;font-weight:700;color:var(--ink-soft);cursor:pointer;}
+  .auth-tabs button.active{background:#fff;color:var(--green);box-shadow:0 1px 5px rgba(20,30,60,.12);}
+  .auth-message{font-size:12.5px;margin:10px 0;color:var(--red);min-height:18px;}
+  .user-chip{display:flex;align-items:center;gap:8px;margin-top:auto;padding:12px;border-top:1px solid var(--line-soft);font-size:12px;color:var(--ink-soft);}
+  .customer-app{min-height:100vh;background:#f7f5ef;padding-bottom:82px;}
+  .customer-header{position:sticky;top:0;z-index:40;background:#fff;border-bottom:1px solid var(--line-soft);padding:12px max(16px,calc((100vw - 980px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px;}
+  .customer-brand{font-size:20px;font-weight:900;color:var(--green);letter-spacing:1px;}
+  .customer-content{width:min(980px,calc(100% - 28px));margin:20px auto;}
+  .customer-nav{position:fixed;bottom:0;left:0;right:0;z-index:45;background:#fff;border-top:1px solid var(--line);display:flex;justify-content:center;box-shadow:0 -3px 16px rgba(20,30,60,.07);}
+  .customer-nav button{width:min(180px,25%);border:0;background:#fff;padding:10px 5px 8px;color:var(--ink-faint);font-size:11px;font-weight:700;cursor:pointer;}
+  .customer-nav button span{display:block;font-size:20px;margin-bottom:2px;}
+  .customer-nav button.active{color:var(--green);}
+  .menu-day{margin:20px 0 10px;font-size:17px;font-weight:800;}
+  .menu-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .menu-product{background:#fff;border:1px solid var(--line-soft);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:8px;}
+  .menu-product-name{font-size:15px;font-weight:800;line-height:1.35;}
+  .qty-control{display:flex;align-items:center;gap:8px;margin-top:auto;}
+  .qty-control button{width:32px;height:32px;border-radius:8px;border:1px solid var(--line);background:#fff;font-size:18px;cursor:pointer;}
+  .qty-control strong{min-width:25px;text-align:center;}
+  .cart-bar{position:sticky;bottom:74px;background:var(--green);color:#fff;border-radius:14px;padding:13px 16px;margin-top:18px;display:flex;justify-content:space-between;align-items:center;gap:10px;box-shadow:0 10px 25px rgba(47,111,87,.26);}
+  .portal-admin-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:14px;}
+  .portal-list-row{display:flex;justify-content:space-between;gap:10px;align-items:center;padding:10px 0;border-top:1px solid var(--line-soft);font-size:13px;}
+
+  .hero-card{background:linear-gradient(135deg,var(--grad-start),var(--grad-end));border-radius:16px;padding:20px 22px;color:#fff;margin-bottom:16px;box-shadow:0 10px 26px rgba(47,111,237,0.28);}
+  .hero-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;gap:10px;flex-wrap:wrap;}
+  .hero-label{font-size:15px;font-weight:700;display:flex;align-items:center;gap:6px;}
+  .hero-dot{width:7px;height:7px;border-radius:50%;background:#4ADE80;display:inline-block;}
+  .hero-date{font-size:12px;opacity:.85;margin-top:5px;}
+  .hero-link{background:none;border:none;color:#fff;opacity:.9;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .hero-bottom{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .hero-growth{font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:20px;background:rgba(255,255,255,0.2);}
+  .hero-amount{font-size:30px;font-weight:800;}
+
+  .linechart-wrap{position:relative;}
+  .linechart-legend{display:flex;gap:16px;justify-content:flex-end;margin-bottom:6px;font-size:12px;color:var(--ink-soft);}
+  .legend-dot{display:inline-flex;align-items:center;gap:5px;}
+  .legend-swatch{width:14px;height:3px;border-radius:2px;display:inline-block;}
+  .linechart-x{display:flex;justify-content:space-between;font-size:10.5px;color:var(--ink-faint);margin-top:2px;padding:0 2px;}
+
+  .quick-actions{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:16px 0 20px;}
+  .qa-item{display:flex;flex-direction:column;align-items:center;gap:8px;background:none;border:none;cursor:pointer;padding:6px 2px;}
+  .qa-icon{width:52px;height:52px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;}
+  .qa-label{font-size:11.5px;font-weight:600;color:var(--ink-soft);text-align:center;line-height:1.3;}
+
+  .pending-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+  .pending-chip{flex:1;min-width:150px;background:var(--panel-alt);border-radius:12px;padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;border:none;text-align:left;}
+  .pending-chip-label{font-size:13px;color:var(--ink-soft);font-weight:600;margin-bottom:4px;}
+  .pending-chip-value{font-size:20px;font-weight:800;color:var(--ink);}
+  .pending-chip-arrow{color:var(--ink-faint);font-size:16px;}
+
+  .pkg-compact-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px;cursor:pointer;}
+  .pkg-compact-card:hover{border-color:var(--green-soft);}
+  .pkg-compact-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .pkg-compact-name{font-weight:700;font-size:15px;}
+  .pkg-compact-meta{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+  .pkg-compact-foot{display:flex;justify-content:space-between;align-items:center;margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);gap:8px;flex-wrap:wrap;}
+  .pkg-sub-count{font-size:12.5px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;}
+
+  .subscriber-row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 0;border-top:1px solid var(--line-soft);flex-wrap:wrap;}
+  .subscriber-name{font-weight:700;font-size:13.5px;}
+  .subscriber-actions{display:flex;gap:4px;align-items:center;flex-wrap:wrap;}
+  .subscriber-actions select{font-size:12px;padding:5px 8px;width:auto;}
+
+  .main{flex:1;padding:28px 32px;min-width:0;padding-bottom:80px;}
+
+  .section-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:22px;gap:12px;flex-wrap:wrap;}
+  .section-title{margin:0;font-size:22px;font-weight:800;color:var(--ink);}
+  .section-sub{margin:4px 0 0;font-size:13.5px;color:var(--ink-soft);}
+
+  .btn{display:inline-flex;align-items:center;gap:6px;padding:9px 16px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;border:1px solid transparent;transition:.15s;white-space:nowrap;}
+  .btn-solid{background:var(--green);color:#fff;}
+  .btn-solid:hover{background:var(--green-soft);}
+  .btn-ghost{background:transparent;color:var(--green);border:1px solid var(--line);}
+  .btn-ghost:hover{background:var(--panel-alt);}
+  .btn-danger{background:transparent;color:var(--red);border:1px solid var(--line);}
+  .btn-danger:hover{background:#FBEDEA;}
+  .icon-btn{background:none;border:none;cursor:pointer;color:var(--ink-faint);padding:6px;border-radius:6px;}
+  .icon-btn:hover{background:var(--line-soft);color:var(--ink);}
+
+  .stats-row{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
+  .stat-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px 18px;flex:1;min-width:150px;}
+  .stat-label{font-size:12.5px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .stat-value{font-size:24px;font-weight:800;}
+  .stat-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+  .stat-icon{width:38px;height:38px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:17px;}
+  .trend-pill{font-size:11px;font-weight:700;padding:2px 7px;border-radius:20px;}
+  .trend-up{color:#2E6B3E;background:#E1F0E3;}
+  .trend-down{color:var(--red);background:#F7E4E0;}
+
+  .range-row{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:18px;}
+  .range-pill{border:1px solid var(--line);background:#fff;color:var(--ink-soft);font-size:13px;font-weight:600;padding:7px 13px;border-radius:20px;cursor:pointer;}
+  .range-pill.active{background:var(--green);border-color:var(--green);color:#fff;}
+  .range-dates{display:flex;gap:8px;align-items:center;}
+
+  .alert-list{display:flex;flex-direction:column;gap:8px;}
+  .alert-item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;border-radius:9px;background:#FBF1DE;border:1px solid #EEDDB0;}
+  .alert-item.danger{background:#FBEAE6;border-color:#EFC7BC;}
+  .alert-name{font-size:13.5px;font-weight:700;}
+  .alert-sub{font-size:12px;color:var(--ink-soft);}
+
+  .progress-track{height:8px;border-radius:6px;background:var(--line-soft);overflow:hidden;margin:8px 0;}
+  .progress-fill{height:100%;border-radius:6px;background:var(--green-soft);}
+  .progress-fill.low{background:var(--gold);}
+  .progress-fill.empty{background:var(--red);}
+  .progress-label{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-soft);}
+
+  .branch-pill{display:inline-flex;align-items:center;gap:4px;font-size:11.5px;font-weight:600;color:var(--blue);background:var(--icon-blue);padding:2px 8px;border-radius:20px;}
+  .settings-block{margin-bottom:22px;}
+  .settings-block h4{font-size:14px;margin:0 0 8px;}
+  .code-box{background:#232019;color:#E9E2CC;font-family:'SFMono-Regular',Consolas,monospace;font-size:12.5px;padding:14px 16px;border-radius:9px;overflow-x:auto;white-space:pre;line-height:1.6;}
+  .conn-badge{display:inline-flex;align-items:center;gap:6px;font-size:13px;font-weight:700;padding:6px 12px;border-radius:20px;}
+  .conn-ok{background:#E1F0E3;color:#2E6B3E;}
+  .conn-off{background:#F0E9D8;color:var(--ink-soft);}
+
+  .panel{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:20px;}
+  .panel-title{font-size:14px;font-weight:700;margin-bottom:16px;}
+  .dash-grid{display:flex;gap:18px;flex-wrap:wrap;}
+  .dash-col{flex:1 1 320px;}
+
+  .chart-bars{display:flex;align-items:flex-end;gap:10px;height:130px;}
+  .chart-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;}
+  .chart-bar{width:100%;max-width:34px;border-radius:5px 5px 2px 2px;background:var(--green-soft);}
+  .chart-bar.today{background:var(--gold);}
+  .chart-day{font-size:11px;color:var(--ink-faint);text-transform:capitalize;}
+
+  .upcoming-row{display:flex;justify-content:space-between;align-items:center;padding-bottom:10px;margin-bottom:10px;border-bottom:1px solid var(--line-soft);}
+  .upcoming-row:last-child{border-bottom:none;margin-bottom:0;padding-bottom:0;}
+
+  .badge{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;padding:3px 9px;border-radius:20px;white-space:nowrap;}
+
+  .filters-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:18px;align-items:center;}
+  .date-box{display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:6px 10px;}
+  .date-box input{border:none;font-size:13.5px;background:transparent;color:var(--ink);}
+  .check-label{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--ink-soft);cursor:pointer;}
+  .search-wrap{position:relative;flex:1 1 180px;min-width:160px;}
+  .search-wrap .search-icon{position:absolute;left:10px;top:11px;color:var(--ink-faint);font-size:13px;}
+  .search-wrap input{padding-left:28px;}
+
+  .input{width:100%;padding:9px 11px;border-radius:7px;border:1px solid var(--line);font-size:14px;color:var(--ink);background:#fff;}
+  textarea.input{resize:vertical;min-height:64px;}
+  .field{display:block;margin-bottom:14px;}
+  .field-label{display:block;font-size:12.5px;font-weight:600;color:var(--ink-soft);margin-bottom:6px;}
+  .field-hint{display:block;font-size:11.5px;color:var(--ink-faint);margin-top:4px;}
+  .field-row{display:flex;gap:12px;}
+  .field-row>.field{flex:1;}
+
+  .empty-state{text-align:center;padding:56px 20px;color:var(--ink-faint);border:1px dashed var(--line);border-radius:12px;background:#fff;}
+  .empty-icon{font-size:30px;margin-bottom:10px;opacity:.6;}
+  .empty-title{font-size:14.5px;font-weight:600;color:var(--ink-soft);}
+  .empty-sub{font-size:13px;margin-top:4px;}
+
+  .order-row{background:var(--panel);border:1px solid var(--line-soft);border-radius:10px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:14px;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .order-row:hover{border-color:var(--green-soft);}
+  .order-row.dragging{opacity:.5;border-style:dashed;}
+  .order-row.drag-over{border-color:var(--green);box-shadow:0 0 0 2px rgba(47,111,87,.14);}
+  .drag-handle{border:none;background:transparent;color:var(--ink-faint);font-size:20px;line-height:1;padding:8px 4px;cursor:grab;touch-action:none;user-select:none;}
+  .drag-handle:active{cursor:grabbing;color:var(--green);}
+  .order-name{font-weight:700;font-size:14.5px;display:flex;align-items:center;gap:6px;}
+  .order-sub{font-size:12.5px;color:var(--ink-faint);display:flex;align-items:center;gap:4px;margin-top:2px;}
+  .order-contact{color:var(--ink);font-weight:700;overflow-wrap:anywhere;}
+  .order-note{margin-top:6px;color:var(--red);font-size:13px;font-weight:600;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .order-items{font-size:13px;color:var(--ink-soft);}
+  .order-total{font-weight:700;color:var(--ink);margin-top:3px;}
+  .order-time{font-size:13px;color:var(--ink-soft);display:flex;align-items:center;gap:5px;min-width:130px;}
+  .status-select{font-weight:600;}
+
+  .product-combobox{position:relative;flex:1;min-width:220px;}
+  .product-combobox input.item-product-search{width:100%;padding-right:34px;}
+  .product-combobox-arrow{position:absolute;right:11px;top:9px;color:var(--ink-faint);pointer-events:none;font-size:12px;}
+  .product-suggestions{display:none;position:absolute;z-index:130;left:0;right:0;top:calc(100% + 4px);max-height:230px;overflow-y:auto;background:#fff;border:1px solid var(--line);border-radius:9px;box-shadow:0 10px 28px rgba(20,30,60,.16);padding:5px;}
+  .product-suggestions.open{display:block;}
+  .product-suggestion{display:flex;width:100%;justify-content:space-between;gap:12px;text-align:left;border:none;background:transparent;border-radius:7px;padding:9px 10px;cursor:pointer;color:var(--ink);}
+  .product-suggestion:hover,.product-suggestion:focus{background:var(--panel-alt);outline:none;}
+  .product-suggestion-name{font-size:13.5px;font-weight:700;}
+  .product-suggestion-meta{font-size:12px;color:var(--ink-faint);white-space:nowrap;}
+  .product-suggestion-empty{padding:12px 10px;font-size:12.5px;color:var(--ink-faint);}
+
+  .grid-cards{display:grid;grid-template-columns:repeat(auto-fill, minmax(250px, 1fr));gap:12px;}
+  .card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;padding:16px;cursor:pointer;}
+  .card:hover{border-color:var(--green-soft);}
+  .card-nohover{cursor:default;}
+  .cust-name{font-weight:700;font-size:15px;display:flex;align-items:center;gap:6px;}
+  .cust-line{font-size:12.5px;color:var(--ink-faint);display:flex;align-items:center;gap:4px;margin-top:6px;}
+  .cust-stats{display:flex;gap:14px;margin-top:12px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:12.5px;}
+
+  .modal-overlay{position:fixed;inset:0;background:rgba(43,38,32,0.45);z-index:100;display:flex;align-items:flex-start;justify-content:center;padding:4vh 16px;overflow-y:auto;}
+  .modal{background:var(--panel);border-radius:14px;width:100%;max-width:460px;box-shadow:0 20px 50px rgba(43,38,32,0.25);overflow:hidden;}
+  .modal.wide{max-width:640px;}
+  .modal-header{display:flex;justify-content:space-between;align-items:center;padding:16px 20px;border-bottom:1px solid var(--line-soft);}
+  .modal-header h3{margin:0;font-size:16px;font-weight:700;}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:18px;padding:4px;}
+  .modal-body{padding:20px;}
+
+  .mode-toggle{display:flex;gap:8px;margin-bottom:14px;}
+  .mode-toggle label{flex:1;position:relative;}
+  .mode-toggle input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
+  .mode-toggle span{display:block;text-align:center;padding:8px 0;border-radius:7px;border:1px solid var(--line);font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .mode-toggle input:checked+span{border-color:var(--green);background:var(--panel-alt);color:var(--green);}
+
+  .weekday-row{display:flex;gap:6px;flex-wrap:wrap;}
+  .weekday-item{position:relative;}
+  .weekday-item input{position:absolute;opacity:0;width:100%;height:100%;margin:0;cursor:pointer;}
+  .weekday-item span{display:block;padding:6px 12px;border-radius:7px;font-size:12.5px;font-weight:600;border:1px solid var(--line);color:var(--ink-soft);}
+  .weekday-item input:checked+span{border-color:var(--green);background:var(--green);color:#fff;}
+
+  .item-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;}
+  .item-row select{flex:1;}
+  .item-row input{width:70px;}
+  .row-remove{background:none;border:none;cursor:pointer;color:var(--ink-faint);font-size:15px;padding:4px;}
+  .add-row-btn{background:none;border:none;color:var(--green);font-size:13px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:4px;padding:4px 0;}
+
+  .total-row{display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-top:1px solid var(--line-soft);margin-top:6px;}
+  .total-label{font-size:13.5px;color:var(--ink-soft);font-weight:600;}
+  .total-value{font-size:18px;font-weight:800;color:var(--green);}
+  .form-actions{display:flex;gap:8px;margin-top:10px;}
+  .form-actions .btn{flex:1;justify-content:center;}
+
+  .sub-card-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;}
+  .sub-foot{display:flex;justify-content:space-between;align-items:center;padding-top:8px;border-top:1px solid var(--line-soft);}
+  .sub-foot select{font-size:12px;padding:5px 8px;width:auto;}
+
+  .recipe-card{background:var(--panel);border:1px solid var(--line-soft);border-radius:12px;overflow:hidden;margin-bottom:10px;}
+  .recipe-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;}
+  .recipe-body{padding:0 16px 16px;border-top:1px solid var(--line-soft);display:none;}
+  .recipe-body.open{display:block;}
+  .recipe-cols{display:flex;gap:24px;flex-wrap:wrap;margin-top:14px;}
+  .recipe-col{flex:1 1 200px;}
+  .recipe-col-title{font-size:12.5px;font-weight:700;color:var(--ink-soft);margin-bottom:6px;}
+  .recipe-col ul,.recipe-col ol{margin:0;padding-left:18px;font-size:13.5px;line-height:1.7;}
+  .recipe-note{margin-top:12px;font-size:12.5px;color:var(--ink-soft);background:var(--panel-alt);padding:8px 10px;border-radius:7px;}
+  .chevron{display:inline-block;transition:transform .15s;color:var(--ink-faint);}
+  .chevron.open{transform:rotate(180deg);}
+
+  .detail-line{display:flex;gap:6px;align-items:center;font-size:13.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .detail-note{background:var(--panel-alt);padding:8px 10px;border-radius:7px;margin-top:4px;font-size:13.5px;}
+  .detail-stats{display:flex;gap:12px;margin:16px 0;}
+  .detail-stat{flex:1;background:var(--panel-alt);border-radius:8px;padding:10px 12px;}
+  .detail-stat-label{font-size:11.5px;color:var(--ink-faint);}
+  .detail-stat-value{font-size:18px;font-weight:800;}
+  .hist-row{display:flex;justify-content:space-between;font-size:12.5px;padding:6px 0;border-bottom:1px solid var(--line-soft);gap:8px;}
+  .hist-list{display:flex;flex-direction:column;max-height:200px;overflow-y:auto;margin-bottom:16px;}
+
+  .loading{min-height:60vh;display:flex;align-items:center;justify-content:center;color:var(--ink-faint);}
+
+
+  .profit-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:18px;}
+  .profit-box{background:#fff;border:1px solid var(--line-soft);border-radius:12px;padding:15px 16px;}
+  .profit-box-label{font-size:12px;color:var(--ink-soft);font-weight:600;margin-bottom:6px;}
+  .profit-box-value{font-size:21px;font-weight:800;}
+  .profit-box-note{font-size:11px;color:var(--ink-faint);margin-top:4px;}
+  .profit-positive{color:#2E6B3E;}
+  .profit-negative{color:var(--red);}
+  .cost-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .cost-table th,.cost-table td{padding:8px 6px;border-bottom:1px solid var(--line-soft);text-align:left;vertical-align:middle;}
+  .cost-table th{color:var(--ink-soft);font-weight:700;font-size:12px;}
+  .cost-right{text-align:right!important;}
+  .material-chip{display:inline-flex;align-items:center;gap:5px;padding:3px 8px;border-radius:20px;background:var(--panel-alt);color:var(--ink-soft);font-size:11.5px;font-weight:700;}
+  .cost-preview{font-size:11.5px;color:var(--green);font-weight:700;margin-top:4px;}
+  .expense-row{background:#fff;border:1px solid var(--line-soft);border-radius:10px;padding:13px 14px;display:flex;align-items:center;gap:12px;justify-content:space-between;margin-bottom:8px;flex-wrap:wrap;}
+  .expense-main{flex:1;min-width:220px;}
+  .expense-name{font-weight:700;font-size:13.5px;}
+  .expense-meta{font-size:11.5px;color:var(--ink-faint);margin-top:3px;}
+  .expense-amount{font-weight:800;font-size:15px;color:var(--red);white-space:nowrap;}
+  .mini-actions{display:flex;align-items:center;gap:3px;}
+  .recipe-ing-head{display:grid;grid-template-columns:1.35fr .7fr .8fr 28px;gap:7px;margin-bottom:6px;color:var(--ink-faint);font-size:11px;font-weight:600;}
+  .recipe-ing-grid{display:grid;grid-template-columns:1.35fr .7fr .8fr 28px;gap:7px;align-items:center;}
+  .recipe-ing-grid .input{min-width:0;}
+  .recipe-cost-summary{margin-top:10px;background:var(--panel-alt);border-radius:9px;padding:10px 12px;font-size:12.5px;}
+  @media (max-width: 900px){
+    .profit-grid{grid-template-columns:repeat(2,minmax(0,1fr));}
+  }
+
+  @media (max-width: 860px){
+    .sidebar{display:none;}
+    .mobilenav{display:flex;}
+    .mobileheader{display:flex;}
+    .main{padding:16px;padding-bottom:90px;}
+    .fab{bottom:80px;}
+  }
+.mobilenav{overflow-x:auto;justify-content:flex-start}.mobilenav button{flex:1 0 72px}
+
+.order-tag-trigger{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid var(--line-soft);border-radius:7px;background:var(--panel);padding:7px;cursor:pointer;min-width:44px;min-height:36px}
+.order-tag-square{width:16px;height:16px;border:1px solid currentColor;border-radius:3px;font-size:12px;line-height:14px;text-align:center}
+.order-tag-options{display:flex;flex-wrap:wrap;gap:18px;margin:18px 0 28px}
+.order-tag-options label{display:flex;align-items:center;gap:7px;cursor:pointer;font-size:14px}
+.order-tag-options input{accent-color:#009b9c;width:18px;height:18px}
+.order-tag-counter{text-align:right;color:var(--ink-faint);font-size:12px;margin-top:5px}
+
+.customer-suggestions{position:absolute;top:100%;left:0;right:0;max-height:250px;overflow:auto;background:var(--panel);border:1px solid var(--line-soft);border-radius:10px;box-shadow:0 8px 24px #0002;z-index:100}
+.customer-suggestions button{display:block;width:100%;border:0;background:transparent;text-align:left;padding:12px;color:var(--ink);cursor:pointer}.customer-suggestions button:hover,.customer-suggestions button:focus{background:var(--panel-alt)}.customer-suggestions small{display:block;margin-top:4px;color:var(--ink-soft)}
+#oyenWelcome{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;background:#163b2f;overflow:hidden;transition:opacity .45s;isolation:isolate}#oyenWelcome.leaving{opacity:0;pointer-events:none}
+.welcome-bg{position:absolute;inset:-25px;background:var(--welcome-image) center/cover;filter:blur(18px) brightness(.55);z-index:-1}
+.welcome-portrait{height:100%;height:100dvh;max-width:100%;aspect-ratio:9/16;position:relative;overflow:hidden;background:#e7d4b8}
+.welcome-photo,.welcome-person{position:absolute;inset:6% 4% 20%;background:var(--welcome-image) center top/contain no-repeat;animation:welcomeCamera 6s ease-in-out both}
+.welcome-person{clip-path:polygon(24% 0,100% 0,100% 88%,55% 88%,32% 70%,36% 28%,15% 16%);animation:welcomePerson 4s ease-in-out infinite;transform-origin:70% 90%}
+.welcome-shade{position:absolute;inset:0;background:linear-gradient(180deg,#10251f33,transparent 45%,#112f27e8)}
+.welcome-copy{position:absolute;bottom:8%;left:8%;right:8%;color:#fff;text-align:center}.welcome-copy h1{font:48px Georgia;letter-spacing:8px;margin:0 0 14px}.welcome-copy p{font-size:17px}.welcome-copy button{padding:12px 28px;border:1px solid #ffffff99;border-radius:30px;background:#ffffffed;color:#183e30;cursor:pointer;font:600 15px system-ui}
+@keyframes welcomeCamera{from{transform:scale(1)}to{transform:scale(1.045) translateY(-.6%)}}@keyframes welcomePerson{0%,100%{transform:translateY(0) rotate(0deg)}50%{transform:translateY(-3px) rotate(.25deg)}}
+@media(prefers-reduced-motion:reduce){.welcome-photo,.welcome-person{animation:none!important}}
+.soc{max-width:1700px;margin:auto}.soc-heading,.soc-toolbar,.soc-chat-head{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap}.soc-heading{margin-bottom:22px}.soc h1{margin:0 0 6px;font-size:26px}.soc-heading p{margin:0;color:var(--ink-soft);font-size:14px}.soc-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.soc-actions .input{width:auto;max-width:260px}.soc-channels{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-bottom:16px}.soc-channel{display:flex;align-items:center;gap:12px;border:1px solid var(--line);border-radius:14px;background:#fff;padding:16px;text-align:left;cursor:pointer;color:var(--ink);min-width:0}.soc-channel.active{border-color:var(--soc-brand);box-shadow:0 0 0 2px color-mix(in srgb,var(--soc-brand) 12%,transparent)}.soc-brand{display:grid;place-items:center;width:40px;height:40px;flex-shrink:0;border-radius:12px;background:var(--soc-brand);color:white;font-size:25px;font-weight:800}.soc-channel strong{display:block;font-size:15px}.soc-channel small{display:block;color:var(--ink-soft);font-size:11px;margin-top:5px}.soc-pill{font-size:10px;font-weight:600;color:var(--ink-soft);background:var(--bg);border:1px solid var(--line);padding:5px 7px;border-radius:20px;margin-left:auto;white-space:nowrap}.soc-toolbar{margin:16px 0}.soc-note,.soc-error{padding:12px 16px;border-radius:10px;font-size:13px;line-height:1.6;margin:12px 0;background:#edf4ff;color:#2451a5;border:1px solid #d7e5ff}.soc-error{background:#fff0ee;color:#b32d25;border-color:#f6cbc6}.soc-connect-empty{border:1px solid var(--line);border-radius:16px;background:#fff;text-align:center;padding:64px 24px;line-height:1.6}.soc-connect-empty>.soc-brand{margin:auto;width:58px;height:58px;font-size:32px}.soc-connect-empty h2{font-size:21px}.soc-connect-empty .btn{margin:6px}.soc-muted{color:var(--ink-soft);font-size:12px;line-height:1.6}.soc-workspace{display:grid;grid-template-columns:270px minmax(0,1fr);background:white;border:1px solid var(--line);border-radius:14px;overflow:hidden;min-height:620px}.soc-workspace.has-thread{grid-template-columns:240px minmax(260px,1fr) 320px}.soc-list{border-right:1px solid var(--line);min-width:0;max-height:850px;overflow:auto}.soc-list-tools{padding:16px;border-bottom:1px solid var(--line);display:grid;gap:9px}.soc-thread{display:flex;gap:10px;width:100%;background:white;border:0;border-bottom:1px solid var(--line-soft);text-align:left;padding:16px 12px;cursor:pointer;color:var(--ink)}.soc-thread:hover,.soc-thread.selected{background:#eef4ff}.soc-thread.selected{box-shadow:inset 3px 0 var(--green)}.soc-avatar{display:grid;place-items:center;width:35px;height:35px;flex-shrink:0;background:#e3ecfe;border-radius:50%;color:#2558c4;font-weight:700}.soc-thread-copy{min-width:0;flex:1}.soc-thread strong{display:block;font-size:13px}.soc-thread small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px;color:var(--ink-soft);margin-top:5px}.soc-unread{width:7px;height:7px;background:var(--green);border-radius:50%;margin-top:6px}.soc-chat{display:flex;flex-direction:column;min-width:0;background:#f8faff;max-height:850px}.soc-chat-head{background:#fff;border-bottom:1px solid var(--line);padding:18px}.soc-chat-head strong{font-size:14px}.soc-chat-head small{display:block;font-size:11px;color:var(--ink-soft);margin-top:4px}.soc-small{background:white;border:1px solid var(--line);border-radius:7px;padding:7px 9px;font-size:11px;cursor:pointer;color:var(--ink-soft)}.soc-post{font-size:12px;padding:12px 18px;background:#eff3fa;border-bottom:1px solid var(--line)}.soc-messages{padding:24px 18px;overflow:auto;display:flex;flex-direction:column;gap:14px;min-height:260px;flex:1}.soc-bubble{align-self:flex-start;max-width:85%;border-radius:12px 12px 12px 2px;background:white;border:1px solid var(--line);padding:12px 14px;font-size:13px;line-height:1.6;overflow-wrap:anywhere;white-space:pre-wrap}.soc-bubble.out{align-self:flex-end;background:#e6efff;border-color:#d7e5ff;border-radius:12px 12px 2px 12px}.soc-bubble small{display:block;font-size:10px;color:var(--ink-soft);margin-top:7px;white-space:normal}.soc-compose{padding:16px;border-top:1px solid var(--line);background:#fff}.soc-compose textarea{display:block;margin:7px 0 10px;resize:vertical}.soc-compose .btn{float:right}.soc-compose:after{content:'';display:block;clear:both}.soc-order{border-left:1px solid var(--line);padding:18px;overflow:auto;max-height:850px;background:white}.soc-pane-title{font-size:16px;font-weight:800;display:flex;align-items:center;margin-bottom:16px}.soc-order fieldset{border:0;padding:0;margin:0;min-width:0}.soc-order label{display:block;font-size:12px;font-weight:600;margin-bottom:12px}.soc-order label>.input{display:block;width:100%;margin-top:6px;font-weight:400}.soc-order textarea{min-height:64px;resize:vertical}.soc-product-row{display:grid;grid-template-columns:minmax(0,1fr) 56px 24px;gap:5px;margin-bottom:8px}.soc-product-row .input{padding:8px 5px;width:100%;min-width:0;font-size:11px}.soc-remove{border:0;background:transparent;color:var(--red);cursor:pointer;font-size:19px}.soc-link{border:0;background:transparent;color:var(--green);padding:3px 0;cursor:pointer;font-size:12px;margin-bottom:10px}.soc-total{display:flex;justify-content:space-between;gap:8px;padding:16px 0;margin-top:4px;border-top:1px solid var(--line);font-size:13px}.soc-total strong{font-size:18px;color:var(--green)}.soc-full{width:100%}.soc-empty{display:flex;align-items:center;justify-content:center;text-align:center;padding:36px 20px;color:var(--ink-soft);font-size:13px}.soc-empty-icon{font-size:44px;color:#8eafea}.soc-empty h3{color:var(--ink);font-size:17px}.soc-guide{line-height:1.75}.soc-guide li{margin:10px 0}.soc-guide label{display:block;margin-bottom:7px}.soc button:disabled{opacity:.5;cursor:not-allowed}.soc .input{max-width:100%}@media(min-width:1600px){.soc-workspace.has-thread{grid-template-columns:280px minmax(300px,1fr) 360px}}@media(max-width:1200px){.soc-workspace.has-thread{grid-template-columns:220px minmax(250px,1fr)}.soc-order{grid-column:1/-1;border-left:0;border-top:1px solid var(--line);max-height:none}.soc-order form fieldset{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}.soc-order-products,.soc-total{grid-column:1/-1}.soc-channel{flex-wrap:wrap}.soc-channel .soc-pill{margin-left:0}}@media(max-width:700px){.soc-channels{grid-template-columns:1fr;gap:8px}.soc-channel{padding:12px;flex-wrap:nowrap}.soc-channel .soc-pill{margin-left:auto}.soc-channel small{font-size:10px}.soc-heading h1{font-size:22px}.soc-workspace,.soc-workspace.has-thread{display:flex;flex-direction:column;min-height:0}.soc-list{border-right:0;max-height:300px;border-bottom:1px solid var(--line)}.soc-chat{max-height:680px;min-height:420px}.soc-order{max-height:none}.soc-order form fieldset{display:block}.soc-toolbar{align-items:stretch}.soc-toolbar>.soc-actions{width:100%}.soc-connect-empty{padding:32px 18px}.soc .segmented button{padding:8px 12px}.soc{padding-bottom:25px}}
+
+ body{padding:24px} #modalRoot:empty{display:none}</style></head><body><div style="padding:8px 0 20px;color:#66707e;font-size:12px">BẢN XEM TRƯỚC · DỮ LIỆU MẪU · KHÔNG KẾT NỐI MÁY CHỦ</div><main id="mainContent"></main><div id="modalRoot"></div><script>
+const DB={products:[{id:'p1',name:'Sữa hạt',price:25000},{id:'p2',name:'Sữa điều',price:30000}],customers:[],orders:[],branches:[{id:'b1',name:'Cơ sở chính'}]};
+let TAB='social',supaClient=null;
+let writes=[],shouldFail=false;
+const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const vnd=n=>Number(n).toLocaleString('vi-VN')+' đ';
+const todayISO=()=> '2026-10-15';
+const uid=()=>crypto.randomUUID();
+const safeClone=x=>JSON.parse(JSON.stringify(x));
+const safeEqual=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+const nextOrderPosition=()=>DB.orders.length+1;
+const productVolumeMl=()=>250;
+const normalizeVietnamPhone=s=>/^0[0-9]{9}$/.test(String(s))?'+84'+String(s).slice(1):'';
+const customerOrderOnDate=(id,date,ignore,phone)=>DB.orders.find(o=>o.id!==ignore&&o.deliveryDate===date&&(o.customerId===id||o.phone===phone));
+const safeEnqueue=async records=>{if(shouldFail)throw Error('Mất kết nối');writes.push(safeClone(records));};
+function openModal(title,body){document.getElementById('modalRoot').innerHTML=body;}
+function closeModal(){document.getElementById('modalRoot').innerHTML='';}
+function renderMain(){document.getElementById('mainContent').innerHTML=renderSocialTab();}
+function setTab(key){TAB=key;}
+
+/* OYEN Social inbox. Provider secrets and webhook processing belong on the server. */
+const OYEN_SOCIAL_CHANNELS = [
+ {id:'zalo',name:'Zalo',icon:'Z',color:'#0068ff',hint:'Zalo Official Account (OA)'},
+ {id:'facebook',name:'Facebook',icon:'f',color:'#1877f2',hint:'Facebook Page & Messenger'},
+ {id:'tiktok',name:'TikTok',icon:'♪',color:'#171b25',hint:'TikTok Business · cần được cấp quyền API'}
+];
+const socialState={channel:'zalo',kind:'messages',accounts:[],account:'',threads:[],selected:null,messages:[],search:'',filter:'all',demo:false,busy:false,sending:false,loading:false,error:'',notice:'',request:0,drafts:{},orderDrafts:{}};
+let socialApiBase='';
+try{socialApiBase=localStorage.getItem('oyen:social-api')||'';}catch(e){}
+const socialChannel=()=>OYEN_SOCIAL_CHANNELS.find(c=>c.id===socialState.channel);
+const socialAccount=()=>socialState.accounts.find(a=>a.id===socialState.account&&a.provider===socialState.channel);
+const socialThread=()=>socialState.threads.find(t=>t.id===socialState.selected);
+const socialKey=()=>[socialState.demo?'demo':'live',socialState.channel,socialState.account,socialState.kind,socialState.selected].join(':');
+function socialDraft(){return socialState.orderDrafts[socialKey()] ||= {name:socialThread()?.customerName||'',phone:socialThread()?.phone||'',address:socialThread()?.address||'',customerId:'',date:todayISO(),branch:DB.branches[0]?.id||'',shipping:'0',note:'',items:[{productId:DB.products[0]?.id||'',qty:1}]};}
+function socialRender(){if(TAB==='social')renderMain();}
+function socialMountContent(el){
+ // Existing realtime sync may redraw the page while the agent is typing.
+ const controls=Array.from(el.querySelectorAll('.soc input,.soc textarea,.soc select'));
+ const active=document.activeElement,index=controls.indexOf(active);
+ const selection=index>=0?{start:active.selectionStart,end:active.selectionEnd}:null;
+ const scrolls=['.soc-list','.soc-messages','.soc-order'].map(selector=>({selector,top:el.querySelector(selector)?.scrollTop||0}));
+ el.innerHTML=renderSocialTab();
+ if(index>=0){const next=el.querySelectorAll('.soc input,.soc textarea,.soc select')[index];if(next&&!next.disabled){next.focus({preventScroll:true});if(selection.start!==null&&typeof next.setSelectionRange==='function')try{next.setSelectionRange(selection.start,selection.end);}catch(e){}}}
+ for(const {selector,top} of scrolls){const target=el.querySelector(selector);if(target)target.scrollTop=top;}
+}
+function socialError(e){socialState.error=e?.message||'Không thực hiện được thao tác. Vui lòng thử lại.';socialRender();}
+async function socialApi(path,options={}){
+ if(!socialApiBase)throw new Error('Chưa cấu hình máy chủ kết nối. Bấm “Thiết lập kết nối” để xem hướng dẫn.');
+ const headers={'Content-Type':'application/json',...(options.headers||{})};
+ const session=supaClient ? await supaClient.auth.getSession() : null;
+ if(!session?.data?.session?.access_token)throw new Error('Cần đăng nhập tài khoản quản trị để dùng kết nối thật.');
+ headers.Authorization='Bearer '+session.data.session.access_token;
+ const response=await fetch(socialApiBase+path,{...options,headers,signal:AbortSignal.timeout(20000)});
+ let data;try{data=await response.json();}catch(e){throw new Error('Máy chủ chưa trả về JSON hợp lệ.');}
+ if(!response.ok)throw new Error(data.message||`Máy chủ trả lỗi ${response.status}.`);
+ return data;
+}
+function socialReset(){socialState.request++;socialState.selected=null;socialState.threads=[];socialState.messages=[];socialState.error='';socialState.notice='';socialState.loading=false;}
+function socialSetChannel(index){if(socialState.busy||socialState.sending)return;socialState.channel=OYEN_SOCIAL_CHANNELS[index].id;socialReset();socialState.account=socialState.accounts.find(a=>a.provider===socialState.channel)?.id||'';socialRender();if(socialState.demo)socialLoadDemo();else if(socialState.account)socialLoadThreads();}
+function socialSetKind(kind){if(socialState.busy||socialState.sending)return;socialState.kind=kind;socialReset();socialRender();if(socialState.demo)socialLoadDemo();else if(socialState.account)socialLoadThreads();}
+function socialSetAccount(value){if(socialState.busy||socialState.sending)return;socialState.account=value;socialReset();socialRender();socialLoadThreads();}
+async function socialRefresh(){
+ if(socialState.busy||socialState.sending)return;
+ if(socialState.demo){socialLoadDemo();return;}
+ socialState.busy=true;socialState.error='';socialRender();
+ try{
+  const result=await socialApi('/accounts');
+  if(!Array.isArray(result.accounts)||result.accounts.some(a=>!a||typeof a.id!=='string'||!OYEN_SOCIAL_CHANNELS.some(c=>c.id===a.provider)))throw new Error('Danh sách tài khoản từ máy chủ không hợp lệ.');
+  socialState.accounts=result.accounts.filter(a=>a.status==='connected');
+  if(!socialAccount())socialState.account=socialState.accounts.find(a=>a.provider===socialState.channel)?.id||'';
+  socialReset();
+  if(socialState.account)await socialLoadThreads();
+ }catch(e){socialError(e);}finally{socialState.busy=false;socialRender();}
+}
+async function socialLoadThreads(){
+ if(socialState.demo)return socialLoadDemo();
+ const request=++socialState.request;socialState.loading=true;socialState.error='';socialRender();
+ try{
+  const account=socialAccount();
+  if(!account||!account.capabilities?.[socialState.kind]){socialState.threads=[];return;}
+  const data=await socialApi(`/threads?accountId=${encodeURIComponent(account.id)}&kind=${socialState.kind}`);
+  if(!Array.isArray(data.threads)||data.threads.some(t=>!t||typeof t.id!=='string'))throw new Error('Danh sách hội thoại không hợp lệ.');
+  if(request!==socialState.request)return;
+  socialState.threads=data.threads;socialState.selected=null;socialState.messages=[];
+ }catch(e){if(request===socialState.request)socialError(e);}finally{if(request===socialState.request){socialState.loading=false;socialRender();}}
+}
+function socialLoadDemo(){
+ socialState.threads=[{id:'sample-1',customerName:'Khách mẫu · Minh Anh',phone:'',address:'',preview:socialState.kind==='messages'?'Cho mình hỏi các vị sữa hôm nay nhé?':'Sữa này có đường không shop?',unread:true,status:'open',postTitle:'Thực đơn sữa hạt OYEN'}, {id:'sample-2',customerName:'Khách mẫu · Hoàng Nam',preview:'Shop tư vấn giúp mình nhé.',unread:false,status:'done',postTitle:'Sữa hạt tươi mỗi ngày'}];
+ socialState.selected=null;socialState.messages=[];socialRender();
+}
+function socialToggleDemo(){if(socialState.busy||socialState.sending)return;socialState.demo=!socialState.demo;socialReset();if(socialState.demo)socialLoadDemo();else{socialRender();if(socialApiBase)socialRefresh();}}
+function socialVisibleThreads(){const q=socialState.search.trim().toLocaleLowerCase('vi');return socialState.threads.filter(t=>(!q||[t.customerName,t.preview,t.phone].join(' ').toLocaleLowerCase('vi').includes(q))&&(socialState.filter==='all'||(socialState.filter==='unread'?t.unread:t.status===socialState.filter)));}
+function socialFilter(){const container=document.getElementById('socialThreadList');if(container)container.innerHTML=socialRenderThreads();}
+function socialRenderThreads(){
+ if(socialState.loading)return '<div class="soc-empty" role="status">Đang tải hội thoại…</div>';
+ const list=socialVisibleThreads();
+ return list.length?list.map(t=>`<button class="soc-thread ${socialState.selected===t.id?'selected':''}" onclick="socialSelectThread(${socialState.threads.indexOf(t)})"><span class="soc-avatar">${escapeHtml((t.customerName||'K').slice(0,1))}</span><span class="soc-thread-copy"><strong>${escapeHtml(t.customerName||'Khách hàng')}</strong><small>${escapeHtml(t.preview||'Chưa có nội dung')}</small><small>${t.status==='done'?'✓ Đã xử lý':'Đang xử lý'}</small></span>${t.unread?'<span class="soc-unread" aria-label="Chưa đọc"></span>':''}</button>`).join(''):'<div class="soc-empty">Chưa có hội thoại phù hợp.</div>';
+}
+async function socialSelectThread(index){
+ if(socialState.sending||socialState.busy)return;
+ const t=socialState.threads[index];if(!t)return;
+ socialState.selected=t.id;socialState.messages=[];socialState.error='';socialState.notice='';
+ const request=++socialState.request;
+ if(socialState.demo){t.unread=false;socialState.messages=[{id:'demo-msg',direction:'in',text:t.preview,createdAt:new Date().toISOString()}];socialRender();return;}
+ socialState.loading=true;socialRender();
+ try{
+  const data=await socialApi(`/threads/${encodeURIComponent(t.id)}?accountId=${encodeURIComponent(socialState.account)}`);
+  if(!Array.isArray(data.messages)||data.messages.some(m=>!m||typeof m.text!=='string'))throw new Error('Nội dung hội thoại không hợp lệ.');
+  if(request!==socialState.request)return;
+  socialState.messages=data.messages;
+  if(t.unread){await socialApi(`/threads/${encodeURIComponent(t.id)}`,{method:'PATCH',body:JSON.stringify({accountId:socialState.account,unread:false})});if(request===socialState.request)t.unread=false;}
+ }catch(e){if(request===socialState.request)socialError(e);}finally{if(request===socialState.request){socialState.loading=false;socialRender();}}
+}
+async function socialSend(event){
+ event.preventDefault();if(socialState.sending||socialState.busy||socialState.loading)return;
+ const thread=socialThread(),key=socialKey(),text=(socialState.drafts[key]||'').trim();if(!thread||!text)return;
+ socialState.sending=true;socialState.error='';socialRender();
+ try{
+  if(socialState.demo){socialState.messages.push({id:uid(),direction:'out',text,createdAt:new Date().toISOString()});socialState.notice='Tin mẫu chỉ hiển thị trong phiên xem thử, không gửi ra mạng xã hội.';}
+  else{
+   if(!socialAccount()?.capabilities?.[socialState.kind==='comments'?'replyComments':'sendMessages'])throw new Error('Tài khoản chưa có quyền trả lời cho mục này.');
+   // Retain request ID on ambiguous failures so retries cannot send twice.
+   const pending=thread.pendingReply;
+   const idempotencyKey=pending?.text===text?pending.key:crypto.randomUUID();thread.pendingReply={text,key:idempotencyKey};
+   const data=await socialApi(`/threads/${encodeURIComponent(thread.id)}/reply`,{method:'POST',body:JSON.stringify({accountId:socialState.account,text,idempotencyKey})});
+   if(!data.message||typeof data.message.text!=='string')throw new Error('Chưa xác nhận được tin đã gửi. Hãy làm mới hội thoại trước khi gửi lại.');
+   socialState.messages.push(data.message);delete thread.pendingReply;
+  }
+  socialState.drafts[key]='';thread.preview=text;
+ }catch(e){socialError(e);}finally{socialState.sending=false;socialRender();}
+}
+async function socialUpdateThread(action){
+ const t=socialThread();if(!t||socialState.sending||socialState.busy)return;
+ const update=action==='unread'?{unread:true}:{status:t.status==='done'?'open':'done'};
+ socialState.busy=true;socialState.error='';socialRender();
+ try{if(!socialState.demo)await socialApi(`/threads/${encodeURIComponent(t.id)}`,{method:'PATCH',body:JSON.stringify({accountId:socialState.account,...update})});Object.assign(t,update);}catch(e){socialError(e);}finally{socialState.busy=false;socialRender();}
+}
+async function socialHideComment(){
+ const t=socialThread();if(!t||socialState.busy||socialState.sending)return;
+ socialState.busy=true;socialState.error='';socialRender();
+ try{if(!socialState.demo)await socialApi(`/threads/${encodeURIComponent(t.id)}/visibility`,{method:'POST',body:JSON.stringify({accountId:socialState.account,hidden:!t.hidden})});t.hidden=!t.hidden;}catch(e){socialError(e);}finally{socialState.busy=false;socialRender();}
+}
+function socialSetup(){
+ openModal('Thiết lập kết nối mạng xã hội',`<div class="soc-guide"><p>Giao diện đã sẵn sàng. Để nhận và gửi tin thật, cần triển khai backend OAuth và webhook, sau đó cấu hình địa chỉ bên dưới.</p><ol><li><b>Zalo:</b> tạo ứng dụng Zalo Developers, liên kết Zalo OA và xin các quyền cần dùng.</li><li><b>Facebook:</b> tạo ứng dụng Meta, kết nối Page, xin quyền Messenger và quản lý bình luận.</li><li><b>TikTok:</b> đăng ký TikTok for Business và xin quyền Business Messaging / quản lý bình luận phù hợp.</li><li>Backend lưu khóa bí mật, xử lý OAuth, xác minh webhook và kiểm tra quyền quản trị.</li></ol><p>Mỗi kênh chỉ bật chức năng khi backend xác nhận đã có quyền. Không nhập mật khẩu hay access token vào app.</p><form onsubmit="socialSaveSetup(event)"><label for="socialApiUrl">Địa chỉ API backend (HTTPS)</label><input id="socialApiUrl" class="input" type="url" placeholder="https://api.example.com/social" value="${escapeHtml(socialApiBase)}"><p class="soc-muted">Chỉ lưu địa chỉ API trên trình duyệt này. App gửi phiên đăng nhập Supabase tới địa chỉ này; chỉ dùng máy chủ của bạn.</p><button class="btn btn-solid" type="submit">Lưu cấu hình</button></form><p>Chi tiết triển khai có trong file HUONG-DAN-MANG-XA-HOI.md đi kèm.</p></div>`,true);
+}
+function socialSaveSetup(event){
+ event.preventDefault();const value=document.getElementById('socialApiUrl').value.trim().replace(/\/+$/,'');
+ try{if(value){const url=new URL(value);if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash)throw new Error('Địa chỉ phải dùng HTTPS và không chứa tài khoản, query hoặc fragment.');}localStorage.setItem('oyen:social-api',value);}catch(e){alert(e.message);return;}
+ socialApiBase=value;socialState.demo=false;socialState.accounts=[];socialState.account='';socialReset();closeModal();socialRender();if(value)socialRefresh();
+}
+async function socialConnect(){
+ if(socialState.demo){socialState.notice='Đang xem thử. Tắt xem thử rồi thiết lập backend để kết nối tài khoản thật.';socialRender();return;}
+ if(!socialApiBase)return socialSetup();
+ if(socialState.busy||socialState.sending)return;
+ const popup=window.open('about:blank','oyen-social-oauth','width=620,height=760');
+ socialState.busy=true;socialState.error='';socialRender();
+ try{
+  const data=await socialApi('/connect',{method:'POST',body:JSON.stringify({provider:socialState.channel,returnOrigin:location.origin})});
+  const url=new URL(data.authorizationUrl);
+  const hosts={zalo:['oauth.zaloapp.com'],facebook:['www.facebook.com','facebook.com'],tiktok:['www.tiktok.com','business-api.tiktok.com','business.tiktok.com']};
+  if(url.protocol!=='https:'||!hosts[socialState.channel].includes(url.hostname))throw new Error('Máy chủ trả về địa chỉ xác thực không hợp lệ.');
+  if(!popup)throw new Error('Trình duyệt đang chặn cửa sổ đăng nhập. Cho phép popup rồi thử lại.');
+  popup.opener=null;popup.location.href=url.href;
+  socialState.notice='Hoàn tất cấp quyền trong cửa sổ đăng nhập, sau đó bấm “Làm mới” để kiểm tra kết nối.';
+ }catch(e){popup?.close();socialError(e);}finally{socialState.busy=false;socialRender();}
+}
+async function socialDisconnect(){
+ if(socialState.busy||socialState.sending)return;const a=socialAccount();if(!a)return;
+ if(!confirm('Ngắt kết nối '+(a.name||socialChannel().name)+'?'))return;
+ socialState.busy=true;socialState.error='';socialRender();
+ try{await socialApi('/accounts/'+encodeURIComponent(a.id),{method:'DELETE'});socialState.accounts=socialState.accounts.filter(x=>x.id!==a.id);socialState.account='';socialReset();}catch(e){socialError(e);}finally{socialState.busy=false;socialRender();}
+}
+function socialOrderField(field,value){socialDraft()[field]=value;}
+function socialOrderItem(index,field,value){socialDraft().items[index][field]=value;socialUpdateTotal();}
+function socialOrderAdd(){socialDraft().items.push({productId:DB.products[0]?.id||'',qty:1});socialRender();}
+function socialOrderRemove(index){if(socialDraft().items.length>1){socialDraft().items.splice(index,1);socialRender();}}
+function socialOrderCustomer(id){const draft=socialDraft(),c=DB.customers.find(c=>c.id===id);draft.customerId=id;if(c)Object.assign(draft,{name:c.name,phone:c.phone||'',address:c.address||''});socialRender();}
+function socialOrderTotal(){const d=socialDraft();return d.items.reduce((s,i)=>s+(Number(DB.products.find(p=>p.id===i.productId)?.price)||0)*(Number(i.qty)||0),0)+(Number(d.shipping)||0);}
+function socialUpdateTotal(){const el=document.getElementById('socialOrderTotal');if(el)el.textContent=vnd(socialOrderTotal());}
+async function socialCreateOrder(event){
+ event.preventDefault();if(socialState.busy||socialState.sending)return;
+ const t=socialThread();if(!t)return;
+ if(socialState.demo){socialState.notice='Xem thử: đã kiểm tra luồng lên đơn. Chưa tạo đơn thật hoặc lưu khách mẫu.';socialRender();return;}
+ if(!socialAccount())return;
+ const d=socialDraft();socialState.error='';socialState.notice='';
+ let snapshot=null;socialState.busy=true;socialRender();
+ try{
+  if(!d.name.trim()||!d.phone.trim()||!d.address.trim()||!d.date)throw new Error('Điền đủ tên, điện thoại, địa chỉ và ngày giao.');
+  if(!DB.branches.some(b=>b.id===d.branch))throw new Error('Vui lòng chọn cơ sở.');
+  if(!Number.isFinite(Number(d.shipping))||Number(d.shipping)<0)throw new Error('Phí giao hàng không hợp lệ.');
+  const items=d.items.map(i=>{const p=DB.products.find(p=>p.id===i.productId),qty=Number(i.qty);if(!p||!Number.isInteger(qty)||qty<1||!Number.isFinite(Number(p.price))||Number(p.price)<0)throw new Error('Chọn sản phẩm và số lượng nguyên dương.');return {productId:p.id,name:p.name,price:Number(p.price),volumeMl:productVolumeMl(p),qty};});
+  if(!items.length)throw new Error('Chọn ít nhất một sản phẩm.');
+  let customer=DB.customers.find(c=>c.id===d.customerId);
+  if(d.customerId&&!customer)throw new Error('Khách hàng đã thay đổi. Vui lòng chọn lại.');
+  const normalized=normalizeVietnamPhone(d.phone);if(!normalized)throw new Error('Số điện thoại Việt Nam không hợp lệ.');
+  if(!customer)customer=DB.customers.find(c=>normalizeVietnamPhone(c.phone)===normalized);
+  if(customerOrderOnDate(customer?.id||'',d.date,null,d.phone))throw new Error('Khách đã có đơn trong ngày giao này. Vào Đơn hàng để cập nhật đơn hiện có.');
+  snapshot=safeClone({customers:DB.customers,orders:DB.orders});
+  if(!customer){customer={id:uid(),name:d.name.trim(),phone:d.phone.trim(),address:d.address.trim(),vip:false,note:'',createdAt:todayISO()};DB.customers.push(customer);}
+  const order={id:uid(),orderType:'order',customerId:customer.id,customerName:d.name.trim(),phone:d.phone.trim(),address:d.address.trim(),branchId:d.branch,items,total:socialOrderTotal(),shippingFee:Number(d.shipping),colorTag:'',tagNote:'',subscriberId:null,subRestored:false,deliveryDate:d.date,deliveryTime:'',status:'cho_xac_nhan',note:d.note.trim(),createdAt:new Date().toISOString(),orderPosition:nextOrderPosition(),paymentStatus:'chua_thanh_toan',paidAt:null,socialSource:{provider:socialState.channel,accountId:socialState.account,threadId:t.id,kind:socialState.kind}};
+  DB.orders.push(order);
+  const records=[{key:'nuts:orders',value:DB.orders.filter(o=>!o.portalOrderId)}];
+  if(!safeEqual(snapshot.customers,DB.customers))records.push({key:'nuts:customers',value:DB.customers});
+  await safeEnqueue(records);snapshot=null;delete socialState.orderDrafts[socialKey()];socialState.notice='Đã lưu đơn vào mục Đơn hàng. Chưa gửi thông báo cho khách.';
+ }catch(e){if(snapshot)Object.assign(DB,snapshot);socialError(e);}finally{socialState.busy=false;socialRender();}
+}
+function socialRenderOrder(){
+ const d=socialDraft(),disabled=socialState.busy||socialState.sending;
+ const linked=socialState.demo?[]:DB.orders.filter(o=>o.socialSource?.threadId===socialState.selected&&o.socialSource?.accountId===socialState.account&&o.socialSource?.provider===socialState.channel);
+ return `<aside class="soc-order"><div class="soc-pane-title">Lên đơn ${socialState.demo?'<span class="soc-pill">Xem thử</span>':''}</div>${linked.length?`<div class="soc-note">${linked.length} đơn đã tạo từ hội thoại này. <button class="soc-link" onclick="setTab('orders')">Xem đơn hàng</button></div>`:''}<form onsubmit="socialCreateOrder(event)"><fieldset ${disabled?'disabled':''}><label>Khách hàng có sẵn<select class="input" onchange="socialOrderCustomer(this.value)"><option value="">Tạo mới / tìm theo điện thoại</option>${DB.customers.map(c=>`<option value="${escapeHtml(c.id)}" ${d.customerId===c.id?'selected':''}>${escapeHtml(c.name)} · ${escapeHtml(c.phone||'')}</option>`).join('')}</select></label><label>Họ tên<input class="input" required value="${escapeHtml(d.name)}" oninput="socialOrderField('name',this.value)" autocomplete="name"></label><label>Điện thoại<input class="input" required type="tel" value="${escapeHtml(d.phone)}" oninput="socialOrderField('phone',this.value)" autocomplete="tel"></label><label>Địa chỉ giao hàng<textarea class="input" required oninput="socialOrderField('address',this.value)" autocomplete="street-address">${escapeHtml(d.address)}</textarea></label><div class="soc-order-products">${d.items.map((i,index)=>`<div class="soc-product-row"><select class="input" aria-label="Sản phẩm ${index+1}" required onchange="socialOrderItem(${index},'productId',this.value)"><option value="">Chọn sản phẩm</option>${DB.products.map(p=>`<option value="${escapeHtml(p.id)}" ${i.productId===p.id?'selected':''}>${escapeHtml(p.name)} · ${vnd(p.price)}</option>`).join('')}</select><input class="input" aria-label="Số lượng ${index+1}" type="number" min="1" step="1" required value="${escapeHtml(i.qty)}" oninput="socialOrderItem(${index},'qty',this.value)"><button class="soc-remove" type="button" aria-label="Xóa sản phẩm ${index+1}" onclick="socialOrderRemove(${index})" ${d.items.length===1?'disabled':''}>×</button></div>`).join('')}</div><button class="soc-link" type="button" onclick="socialOrderAdd()">＋ Thêm sản phẩm</button><label>Ngày giao<input class="input" type="date" required value="${escapeHtml(d.date)}" onchange="socialOrderField('date',this.value)"></label><label>Cơ sở<select class="input" required onchange="socialOrderField('branch',this.value)">${DB.branches.map(b=>`<option value="${escapeHtml(b.id)}" ${d.branch===b.id?'selected':''}>${escapeHtml(b.name)}</option>`).join('')}</select></label><label>Phí giao hàng<input class="input" type="number" min="0" step="1" required value="${escapeHtml(d.shipping)}" oninput="socialOrderField('shipping',this.value);socialUpdateTotal()"></label><label>Ghi chú<textarea class="input" oninput="socialOrderField('note',this.value)">${escapeHtml(d.note)}</textarea></label><div class="soc-total">Tổng cộng <strong id="socialOrderTotal">${vnd(socialOrderTotal())}</strong></div><button class="btn btn-solid soc-full" type="submit">${socialState.busy?'Đang xử lý…':socialState.demo?'Thử lên đơn (không lưu)':'Tạo đơn hàng'}</button><p class="soc-muted">Đơn mới: chờ xác nhận · chưa thanh toán.</p></fieldset></form></aside>`;
+}
+function socialRenderChat(){
+ const t=socialThread();if(!t)return '<div class="soc-chat soc-empty"><div><div class="soc-empty-icon">☏</div><h3>Chọn một hội thoại</h3><p>Tin nhắn, bình luận và ô lên đơn sẽ hiển thị tại đây.</p></div></div>';
+ const canReply=socialState.demo||socialAccount()?.capabilities?.[socialState.kind==='comments'?'replyComments':'sendMessages'];
+ return `<div class="soc-chat"><div class="soc-chat-head"><div><strong>${escapeHtml(t.customerName||'Khách hàng')}</strong><small>${socialState.kind==='comments'?'Bình luận':'Tin nhắn'} · ${escapeHtml(socialChannel().name)}${t.hidden?' · Đã ẩn':''}</small></div><div class="soc-actions"><button class="soc-small" onclick="socialUpdateThread('status')" ${socialState.busy?'disabled':''}>${t.status==='done'?'Mở lại':'✓ Đã xử lý'}</button><button class="soc-small" onclick="socialUpdateThread('unread')">Chưa đọc</button>${socialState.kind==='comments'&&(socialState.demo||socialAccount()?.capabilities?.hideComments)?`<button class="soc-small" onclick="socialHideComment()">${t.hidden?'Hiện bình luận':'Ẩn bình luận'}</button>`:''}</div></div>${socialState.kind==='comments'?`<div class="soc-post">Bài viết: ${escapeHtml(t.postTitle||'Bình luận từ tài khoản đã kết nối')}</div>`:''}<div class="soc-messages" role="log" aria-label="Nội dung hội thoại">${socialState.loading?'<div class="soc-empty">Đang tải nội dung…</div>':socialState.messages.map(m=>`<div class="soc-bubble ${m.direction==='out'?'out':'in'}"><div>${escapeHtml(m.text)}</div><small>${escapeHtml(m.createdAt?new Date(m.createdAt).toLocaleString('vi-VN'):'')}${m.direction==='out'?' · '+(socialState.demo?'Tin mẫu':'Đã gửi'):''}</small></div>`).join('')}</div><form class="soc-compose" onsubmit="socialSend(event)"><label class="soc-muted" for="socialReply">${canReply?'Trả lời '+(socialState.kind==='comments'?'bình luận':'khách hàng'):'Chưa được cấp quyền trả lời trên kênh này'}</label><textarea id="socialReply" class="input" rows="3" maxlength="2000" required placeholder="Nhập nội dung trả lời…" ${!canReply||socialState.sending?'disabled':''} oninput="socialState.drafts[socialKey()]=this.value">${escapeHtml(socialState.drafts[socialKey()]||'')}</textarea><button class="btn btn-solid" type="submit" ${!canReply||socialState.sending||socialState.loading||socialState.busy?'disabled':''}>${socialState.sending?'Đang gửi…':socialState.demo?'Gửi thử':'Gửi trả lời'}</button></form></div>${socialRenderOrder()}`;
+}
+function renderSocialTab(){
+ const channel=socialChannel(),account=socialAccount(),connected=!!account,enabled=socialState.demo||connected,capable=socialState.demo||account?.capabilities?.[socialState.kind];
+ return `<section class="soc"><div class="soc-heading"><div><h1>Mạng xã hội</h1><p>Chăm sóc khách hàng và lên đơn ngay trong hội thoại</p></div><div class="soc-actions"><button class="btn" onclick="socialSetup()">Thiết lập kết nối</button><button class="btn" onclick="socialToggleDemo()">${socialState.demo?'Thoát xem thử':'Xem thử giao diện'}</button><button class="btn" onclick="socialRefresh()" ${socialState.busy||!socialApiBase&&!socialState.demo?'disabled':''}>Làm mới</button></div></div><div class="soc-channels">${OYEN_SOCIAL_CHANNELS.map((c,index)=>`<button class="soc-channel ${c.id===channel.id?'active':''}" onclick="socialSetChannel(${index})" style="--soc-brand:${c.color}"><span class="soc-brand">${c.icon}</span><span><strong>${c.name}</strong><small>${escapeHtml(c.hint)}</small></span><span class="soc-pill">${socialState.demo?'Xem thử':socialState.accounts.some(a=>a.provider===c.id)?'Đã kết nối':'Chưa kết nối'}</span></button>`).join('')}</div>${socialState.demo?'<div class="soc-note">CHẾ ĐỘ XEM THỬ · Dữ liệu mẫu trong phiên này. Không gửi tin, kết nối tài khoản hoặc lưu đơn thật.</div>':''}${socialState.error?`<div class="soc-error" role="alert">${escapeHtml(socialState.error)}</div>`:''}${socialState.notice?`<div class="soc-note" role="status">${escapeHtml(socialState.notice)}</div>`:''}<div class="soc-toolbar"><div class="segmented"><button class="${socialState.kind==='messages'?'active':''}" onclick="socialSetKind('messages')">Tin nhắn</button><button class="${socialState.kind==='comments'?'active':''}" onclick="socialSetKind('comments')">Bình luận</button></div><div class="soc-actions">${connected&&!socialState.demo?`<select class="input" aria-label="Tài khoản đang quản lý" onchange="socialSetAccount(this.value)">${socialState.accounts.filter(a=>a.provider===channel.id).map(a=>`<option value="${escapeHtml(a.id)}" ${a.id===socialState.account?'selected':''}>${escapeHtml(a.name||a.id)}</option>`).join('')}</select><button class="btn" onclick="socialDisconnect()">Ngắt kết nối</button>`:''}<button class="btn btn-solid" onclick="socialConnect()" ${socialState.busy?'disabled':''}>＋ Kết nối ${channel.name}</button></div></div>${!enabled?`<div class="soc-connect-empty"><span class="soc-brand" style="--soc-brand:${channel.color}">${channel.icon}</span><h2>Kết nối ${channel.name} với OYEN</h2><p>Quản lý tin nhắn, bình luận và tạo đơn từ cùng một màn hình.</p><p class="soc-muted">${escapeHtml(channel.hint)}. Chức năng khả dụng phụ thuộc quyền API được cấp.</p><button class="btn btn-solid" onclick="socialConnect()">Kết nối tài khoản</button><button class="btn" onclick="socialToggleDemo()">Xem thử trước</button><p class="soc-muted">Chưa có backend? Mở Thiết lập kết nối để xem các bước triển khai.</p></div>`:!capable?'<div class="soc-connect-empty"><h2>Chưa có quyền cho mục này</h2><p>Tài khoản đã kết nối nhưng nền tảng chưa cấp quyền tin nhắn hoặc bình luận tương ứng. Kiểm tra quyền tại backend rồi bấm Làm mới.</p></div>':`<div class="soc-workspace ${socialThread()?'has-thread':''}"><aside class="soc-list"><div class="soc-list-tools"><label for="socialSearch" class="soc-muted">Tìm hội thoại</label><input class="input" id="socialSearch" type="search" placeholder="Tên, điện thoại, nội dung…" value="${escapeHtml(socialState.search)}" oninput="socialState.search=this.value;socialFilter()"><select class="input" aria-label="Lọc hội thoại" onchange="socialState.filter=this.value;socialFilter()"><option value="all" ${socialState.filter==='all'?'selected':''}>Tất cả hội thoại</option><option value="unread" ${socialState.filter==='unread'?'selected':''}>Chưa đọc</option><option value="open" ${socialState.filter==='open'?'selected':''}>Đang xử lý</option><option value="done" ${socialState.filter==='done'?'selected':''}>Đã xử lý</option></select></div><div id="socialThreadList">${socialRenderThreads()}</div></aside>${socialRenderChat()}</div>`}</section>`;
+}
+
+socialToggleDemo();socialSelectThread(0);</script></body></html>
