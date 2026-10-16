@@ -1,9 +1,11 @@
+import {createProfileLookup} from '../lib/facebook-profile.mjs';
 // All customer data is served only after Supabase verifies the user's session.
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const ids=value=>new Set((value||'').split(',').map(x=>x.trim()).filter(Boolean));
-const thread=row=>({id:row.id,customerName:row.customer_name||`Khách Facebook · ${row.customer_id.slice(-6)}`,preview:row.preview||'',unread:row.unread,status:row.status,updatedAt:row.updated_at});
+const thread=(row,profile={})=>({id:row.id,provider:'facebook',customerName:profile.customerName||row.customer_name||`Khách Facebook · ${row.customer_id.slice(-6)}`,customerAvatar:profile.customerAvatar||'',profileStatus:profile.status||'pending',preview:row.preview||'',unread:row.unread,status:row.status,updatedAt:row.updated_at});
 const message=row=>({id:row.provider_message_id,direction:row.direction,text:row.text,createdAt:row.created_at});
 export function createHandler({env=process.env,fetchImpl=globalThis.fetch}={}){
+ const profiles=createProfileLookup({env,fetchImpl,pages:ids(env.META_PAGE_IDS)});
  return async function handle(request){
   try{
    const url=new URL(request.url),route=new URL(url.searchParams.get('route')||'/accounts','https://social.invalid');
@@ -36,7 +38,8 @@ export function createHandler({env=process.env,fetchImpl=globalThis.fetch}={}){
    if(route.pathname==='/threads'&&request.method==='GET'){
     if(route.searchParams.get('kind')!=='messages')return json({message:'Chưa bật đồng bộ bình luận Facebook.'},409);
     const rows=await db('oyen_social_threads?select=*&page_id=eq.'+encodeURIComponent(page)+'&order=updated_at.desc,id.asc&limit=101');
-    return json({threads:rows.slice(0,100).map(thread),hasMore:rows.length>100});
+    const visible=rows.slice(0,100),info=await profiles.enrich(visible);
+    return json({threads:visible.map((r,i)=>thread(r,info[i])),hasMore:rows.length>100,profileStatus:info.some(p=>p.status==='configuration_required')?'configuration_required':info.some(p=>p.status==='unavailable')?'unavailable':'available'});
    }
    const match=route.pathname.match(/^\/threads\/([^/]+)(\/reply)?$/);
    if(!match)return json({message:'Không tìm thấy chức năng.'},404);
@@ -45,10 +48,12 @@ export function createHandler({env=process.env,fetchImpl=globalThis.fetch}={}){
    const filter='id=eq.'+encodeURIComponent(id)+'&page_id=eq.'+encodeURIComponent(page);
    const rows=await db('oyen_social_threads?select=*&'+filter+'&limit=1');
    if(!rows.length)return json({message:'Không tìm thấy hội thoại.'},404);
+   const ownedThread=rows[0];
    if(match[2])return json({message:'Chưa bật gửi trả lời. Cần cấu hình Page Access Token và quyền pages_messaging trước.'},409);
    if(request.method==='GET'){
     const rows=await db('oyen_social_messages?select=*&thread_id=eq.'+encodeURIComponent(id)+'&order=created_at.desc,provider_message_id.desc&limit=201');
-    return json({messages:rows.slice(0,200).reverse().map(message),hasMore:rows.length>200});
+    const profile=await profiles.lookup(ownedThread);
+    return json({messages:rows.slice(0,200).reverse().map(message),hasMore:rows.length>200,customer:thread(ownedThread,profile)});
    }
    if(request.method==='PATCH'){
     const patch={};
