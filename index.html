@@ -405,6 +405,7 @@
 <div id="modalRoot"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="misa-settings.js"></script>
 <script>
 /* ================= CONSTANTS & HELPERS ================= */
 const STATUS = [
@@ -3508,6 +3509,7 @@ function deleteBranch(id){
 function renderSettingsTab(){
   return `
     ${sectionHeader('Cài đặt', 'Thông báo, màn hình chào và đồng bộ dữ liệu')}
+    ${renderMisaSettings()}
     ${renderDeviceSettings()}
     <div class="panel settings-block">
       <div class="panel-title">Trạng thái kết nối</div>
@@ -4254,6 +4256,7 @@ try{socialApiBase=localStorage.getItem('oyen:social-api')||'';}catch(e){}
 if(!socialApiBase&&location.protocol==='https:')socialApiBase=location.origin+'/api/social';
 let socialAuthClient=null,socialAdminEmail='',socialRestoreStarted=false,socialRestoring=false,socialAuthEpoch=0;
 function socialClearPrivateState(){
+ misaReset();
  socialAuthEpoch++;
  socialAdminEmail='';socialState.accounts=[];socialState.account='';socialState.drafts={};socialState.orderDrafts={};socialReset();socialRender();
 }
