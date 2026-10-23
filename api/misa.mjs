@@ -17,7 +17,7 @@ export function createHandler({env=process.env,fetchImpl=globalThis.fetch}={}){
    const user=await auth.json();if(!admins.includes(user.id))return reply({message:'Tài khoản chưa được cấp quyền cấu hình MISA.'},403);
    const db=async(path,options={})=>{
     const res=await fetchImpl(origin.origin+'/rest/v1/'+path,{...options,headers:{apikey:env.SUPABASE_SERVICE_ROLE_KEY,Authorization:'Bearer '+env.SUPABASE_SERVICE_ROLE_KEY,'Content-Type':'application/json',...options.headers},signal:AbortSignal.timeout(8000),redirect:'error'});
-    if(!res.ok)throw Error('storage');return res.status===204?null:res.json();
+    if(!res.ok)throw Error('storage');return res.status===204||options.headers?.Prefer?.includes('return=minimal')?null:res.json();
    };
    const seal=value=>{const iv=randomBytes(12),cipher=createCipheriv('aes-256-gcm',key,iv);cipher.setAAD(Buffer.from('oyen:misa:v1'));const data=Buffer.concat([cipher.update(JSON.stringify(value),'utf8'),cipher.final()]);return [iv,cipher.getAuthTag(),data].map(x=>x.toString('base64')).join('.');};
    const open=value=>{const [iv,tag,data]=value.split('.').map(x=>Buffer.from(x,'base64'));const cipher=createDecipheriv('aes-256-gcm',key,iv);cipher.setAAD(Buffer.from('oyen:misa:v1'));cipher.setAuthTag(tag);return JSON.parse(Buffer.concat([cipher.update(data),cipher.final()]).toString('utf8'));};
