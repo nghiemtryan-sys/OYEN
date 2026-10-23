@@ -6,7 +6,7 @@ const config={environment:'production',clientId:'oyen-id',clientSecret:'private-
 const req=(action='config',method='GET',body,token=true)=>new Request('https://oyen.example/api/misa?action='+action,{method,headers:token?{Authorization:'Bearer user-session'}:{},...(body?{body:JSON.stringify(body)}:{})});
 function setup(extra={},user='admin',provider={Success:true,Data:'private-token'}){
  let row;const calls=[],env={...base,...extra};
- const handler=createHandler({env,fetchImpl:async(url,options={})=>{calls.push({url,options});if(url.includes('/auth/v1/'))return Response.json({id:user});if(url.includes('/rest/v1/')){if(options.method==='POST'){row=JSON.parse(options.body);return new Response(null,{status:204});}return Response.json(row?[row]:[]);}return Response.json(provider);}});
+ const handler=createHandler({env,fetchImpl:async(url,options={})=>{calls.push({url,options});if(url.includes('/auth/v1/'))return Response.json({id:user});if(url.includes('/rest/v1/')){if(options.method==='POST'){row=JSON.parse(options.body);return new Response(null,{status:201});}return Response.json(row?[row]:[]);}return Response.json(provider);}});
  return {handler,calls,env,row:()=>row};
 }
 test('requires verified admin, key and explicit allowlist',async()=>{
