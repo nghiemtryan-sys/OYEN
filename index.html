@@ -2323,7 +2323,7 @@ function openOrderModal(orderId){
   const hasCustomers = DB.customers.length>0;
 
   const body = `
-    <form id="orderForm" onsubmit="submitOrder(event,'${orderId||''}')">
+    <form id="orderForm" onsubmit="submitOrder(event,'${orderId||''}')"><p class="field-hint">Một khách hàng có thể tạo nhiều đơn trong cùng ngày. Mỗi lần lưu tạo một đơn riêng.</p>
       ${order ? `
         <div class="field"><span class="field-label">Hình thức bán</span><input class="input" value="${order.orderType==='tai_cho'?'Bán tại chỗ':'Order / giao hàng'}" disabled></div>
       ` : `
@@ -2893,7 +2893,7 @@ function openPackageDetail(packageId){
             <select onchange="setSubscriberStatus('${s.id}', this.value)">
               ${SUB_STATUS.map(x=>`<option value="${x.key}" ${s.status===x.key?'selected':''}>${x.label}</option>`).join('')}
             </select>
-            <button class="btn btn-solid" ${empty||s.status!=='dang_hoat_dong'||customerOrderOnDate(s.customerId,packageOrderDate)?'disabled':''} onclick="orderFromSubscriber('${s.id}')">＋ Lên đơn</button>
+            <button class="btn btn-solid" ${empty||s.status!=='dang_hoat_dong'?'disabled':''} onclick="orderFromSubscriber('${s.id}')">＋ Lên đơn</button>
             <button class="icon-btn" onclick="renewSubscriber('${s.id}')" title="Làm mới chu kỳ (về ${pkg.totalQty}/${pkg.totalQty})">🔄</button>
             <button class="icon-btn" onclick="editSubscriberQty('${s.id}')" title="Chỉnh số lượng còn lại">✎</button>
             <button class="icon-btn" onclick="removeSubscriber('${s.id}')" title="Xóa khỏi gói">🗑</button>
@@ -3635,7 +3635,6 @@ function orderFromSubscriber(id){
   const sub=subscriberOf(id);
   if(!sub || sub.status!=='dang_hoat_dong' || sub.remainingQty<=0){alert('Gói đã hết hoặc chưa hoạt động.');return;}
   if(!DB.customers.some(c=>c.id===sub.customerId)){alert('Không tìm thấy khách hàng của gói này.');return;}
-  if(customerOrderOnDate(sub.customerId,packageOrderDate)){alert('Khách đã có đơn trong ngày giao này. Hãy sửa đơn hiện có.');return;}
   const sourceWorkspace=TAB;
   openOrderModal();
   const form=document.getElementById('orderForm');form.dataset.sourcePackage=sub.packageId;form.dataset.sourceWorkspace=sourceWorkspace;
@@ -3932,7 +3931,7 @@ function recurringOnDate(s,date){
   const weekday=new Date(date+'T12:00:00').getDay();
   return s.active!==false && date>=s.startDate && (!s.endDate||date<=s.endDate) && (s.days||[]).includes(weekday);
 }
-function recurringOrder(s,date){return customerOrderOnDate(s.customerId,date);}
+function recurringOrder(s,date){return DB.orders.find(o=>o.status!=='da_huy'&&o.recurringScheduleId===s.id&&(o.recurringDate||o.deliveryDate)===date);}
 function recurringState(s,date){return recurringOrder(s,date)?'ordered':(s.skips||[]).includes(date)?'skipped':'pending';}
 function recurringDue(date){return (DB.recurringSchedules||[]).filter(s=>recurringOnDate(s,date));}
 function setRecurringDate(date){if(date){recurringDate=date;renderMain();}}
@@ -4119,7 +4118,7 @@ async function submitRecurringOrders(event){
    const s=DB.recurringSchedules.find(s=>s.id===row.dataset.id);
    if(!s||!recurringOnDate(s,date)||recurringState(s,date)!=='pending')throw new Error('Một lượt đã lên đơn, bỏ qua hoặc lịch đã đổi. Đóng cửa sổ và kiểm tra lại danh sách.');
    const value=selector=>row.querySelector(selector).value;
-   if(customerOrderOnDate(s.customerId,date,'','',created))throw new Error('Có hai lịch của cùng một khách trong ngày này. Chỉ chọn một lịch để tạo đơn.');
+   if(created.some(o=>o.recurringScheduleId===s.id&&o.recurringDate===date))throw new Error('Lượt giao này đã được chọn.');
    created.push(buildRecurringOrder(s,date,{items:[...row.querySelectorAll('.rec-items .item-row')].map(item=>({productId:item.querySelector('.item-product').value,qty:Number(item.querySelector('.item-qty').value)})),shippingFee:Number(value('.rec-ship')),time:value('.rec-time'),address:value('.rec-address').trim()},position++));
   }
   if(!created.length)throw new Error('Chưa chọn khách.');
@@ -4129,7 +4128,7 @@ async function submitRecurringOrders(event){
  finally{recurringBusy=false;button.disabled=false;}
 }
 
-/* Unified order workspace and one active order per customer / delivery date. */
+/* Unified order workspace. Customers may place multiple orders per delivery date. */
 let ordersWorkspace='list',packageOrderDate=todayISO(),lastPackageCustomer='';
 let orderSubmitBusy=false;
 function orderPhoneKey(value){const n=String(value||'').replace(/\D/g,'');return n.startsWith('84')?'0'+n.slice(2):n;}
@@ -4167,8 +4166,6 @@ async function submitOrder(event,orderId){
   const phone=document.getElementById('orderPhone')?.value||'';
   const date=document.getElementById('orderDeliveryDate')?.value;
   if(!date)throw new Error('Vui lòng chọn ngày giao.');
-  const dup=type!=='tai_cho'&&customerOrderOnDate(customerId,date,orderId,phone);
-  if(dup)throw new Error(`Khách đã có đơn giao ngày ${fmtDate(date)}. Hãy sửa/thêm sản phẩm vào đơn hiện có thay vì tạo đơn mới.`);
   snapshot=JSON.parse(JSON.stringify({orders:DB.orders,customers:DB.customers,subscribers:DB.subscribers}));
   const result=prepareOrderForSave(event,orderId);
   if(!result){Object.assign(DB,snapshot);return;}
@@ -4570,7 +4567,6 @@ async function socialCreateOrder(event){
   if(d.customerId&&!customer)throw new Error('Khách hàng đã thay đổi. Vui lòng chọn lại.');
   const normalized=normalizeVietnamPhone(d.phone);if(!normalized)throw new Error('Số điện thoại Việt Nam không hợp lệ.');
   if(!customer)customer=DB.customers.find(c=>normalizeVietnamPhone(c.phone)===normalized);
-  if(customerOrderOnDate(customer?.id||'',d.date,null,d.phone))throw new Error('Khách đã có đơn trong ngày giao này. Vào Đơn hàng để cập nhật đơn hiện có.');
   snapshot=safeClone({customers:DB.customers,orders:DB.orders});
   if(!customer){customer={id:uid(),name:d.name.trim(),phone:d.phone.trim(),address:d.address.trim(),vip:false,note:'',createdAt:todayISO()};DB.customers.push(customer);}
   const order={id:uid(),orderType:'order',customerId:customer.id,customerName:d.name.trim(),phone:d.phone.trim(),address:d.address.trim(),branchId:d.branch,items,total:socialOrderTotal(),shippingFee:Number(d.shipping),colorTag:'',tagNote:'',subscriberId:null,subRestored:false,deliveryDate:d.date,deliveryTime:'',status:'cho_xac_nhan',note:d.note.trim(),createdAt:new Date().toISOString(),orderPosition:nextOrderPosition(),paymentStatus:'chua_thanh_toan',paidAt:null,socialSource:{provider:socialState.channel,accountId:socialState.account,threadId:t.id,kind:socialState.kind}};
