@@ -1599,6 +1599,36 @@ function renderLineChart(currentSeries, prevSeries){
   const labels = currentSeries.map(d=>`<span>${escapeHtml(d.label)}</span>`).join('');
   return `<div class="linechart-wrap">${svg}<div class="linechart-x">${labels}</div></div>`;
 }
+function dashboardProductSales(orders){
+  const grouped = new Map();
+  for(const order of orders){
+    if(order.status==='da_huy') continue;
+    for(const item of order.items||[]){
+      const qty = Number(item.qty);
+      if(!Number.isFinite(qty) || qty<=0) continue;
+      const name = String(item.name||'Sản phẩm không còn tên').trim();
+      const key = item.productId ? `id:${item.productId}` : `name:${name}`;
+      const row = grouped.get(key)||{name,qty:0};
+      row.qty += qty;
+      grouped.set(key,row);
+    }
+  }
+  return [...grouped.values()].sort((a,b)=>b.qty-a.qty || a.name.localeCompare(b.name,'vi'));
+}
+function renderDashboardProductSales(rows){
+  const total = rows.reduce((sum,row)=>sum+row.qty,0);
+  return `<div class="panel" style="margin-bottom:18px;">
+    <div class="section-header" style="margin-bottom:12px;">
+      <div><div class="panel-title" style="margin:0;">Số lượng bán ra theo mặt hàng</div>
+      <div class="field-hint">Theo thời gian và cơ sở đang chọn · Không tính đơn đã hủy</div></div>
+    </div>
+    ${rows.length ? `<div style="overflow-x:auto;"><table class="cost-table" aria-label="Số lượng bán ra theo mặt hàng">
+      <thead><tr><th>Mặt hàng</th><th class="cost-right">Số lượng đã bán</th></tr></thead>
+      <tbody>${rows.map(row=>`<tr><td>${escapeHtml(row.name)}</td><td class="cost-right"><strong>${row.qty.toLocaleString('vi-VN')}</strong></td></tr>`).join('')}</tbody>
+      <tfoot><tr><th scope="row">Tổng cộng</th><td class="cost-right"><strong>${total.toLocaleString('vi-VN')}</strong></td></tr></tfoot>
+    </table></div>` : `<div class="field-hint" style="padding:8px 0;">Chưa có sản phẩm bán ra trong khoảng thời gian đã chọn.</div>`}
+  </div>`;
+}
 function renderDashboard(){
   const today = todayISO();
   const range = resolveRange(dashFilter);
@@ -1609,13 +1639,14 @@ function renderDashboard(){
   const activeOrders = rangeOrders.filter(o=>o.status!=='da_huy');
   const orderRevenue = activeOrders.reduce((s,o)=>s+o.total,0);
   const revenue = orderRevenue + subscriptionRevenueInRange(range, branch);
-  const qtySold = activeOrders.reduce((s,o)=>s+o.items.reduce((a,it)=>a+it.qty,0),0);
+  const productSales = dashboardProductSales(activeOrders);
+  const qtySold = productSales.reduce((sum,row)=>sum+row.qty,0);
   const avgOrder = activeOrders.length ? Math.round(orderRevenue/activeOrders.length) : 0;
 
   const prevOrders = ordersInRange(prevRange, branch).filter(o=>o.status!=='da_huy');
   const prevOrderRevenue = prevOrders.reduce((s,o)=>s+o.total,0);
   const prevRevenue = prevOrderRevenue + subscriptionRevenueInRange(prevRange, branch);
-  const prevQty = prevOrders.reduce((s,o)=>s+o.items.reduce((a,it)=>a+it.qty,0),0);
+  const prevQty = dashboardProductSales(prevOrders).reduce((sum,row)=>sum+row.qty,0);
   const prevAvg = prevOrders.length ? Math.round(prevOrderRevenue/prevOrders.length) : 0;
 
   const revenueGrowth = pctGrowth(revenue, prevRevenue);
@@ -1690,6 +1721,8 @@ function renderDashboard(){
       ${statCard('💳','var(--icon-gold)','Giá trị đơn TB', vnd(avgOrder), avgGrowth)}
       ${statCard('📦','var(--icon-blue)','Sản phẩm đã bán', qtySold, qtyGrowth)}
     </div>
+
+    ${renderDashboardProductSales(productSales)}
 
     <div class="profit-grid">
       <div class="profit-box"><div class="profit-box-label">Giá vốn (COGS)</div><div class="profit-box-value">${vnd(finance.cogs)}</div><div class="profit-box-note">Theo công thức từng món</div></div>
